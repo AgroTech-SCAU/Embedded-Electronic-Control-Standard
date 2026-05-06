@@ -1,4 +1,8 @@
+<center>
+
 # Embedded-Electronic-Control-Standard
+
+</center>
 
 > AgroTech 协会嵌入式电控开发标准：用于统一电控项目的目录分层、开发顺序、SDK 复用方式、Git/GitHub 协作流程、芯片平台适配方式和安全调试规范
 
@@ -30,26 +34,31 @@ Status: Draft v0.1
 
 ## 3. 核心分层标准
 
-AgroTech 协会嵌入式电控项目统一采用以下分层：
+AgroTech 协会嵌入式电控工程统一采用以下从上到下的分层结构：
 
 ```text
 src/
-├── app/        # 应用层：整机入口、业务流程、状态机、命令分发
-├── service/    # 服务层：组合 device + domain + infra，形成系统能力
-├── device/     # 设备层：真实设备协议、反馈缓存、状态解析、设备抽象
-├── domain/     # 领域层：运动学、控制模型、机构解算、纯算法模型
-├── infra/      # 基础设施层：PID、滤波、矩阵、协议解析、HFSM、CRC、容器
-└── platform/   # 平台层：芯片/HAL/FSP/CubeMX 外设适配、CAN/UART/PWM/GPIO/Tick
+├── app/        # 1. 应用层：任务入口、业务流程、状态机编排、整机逻辑
+├── service/    # 2. 服务层：组合 device + domain + infra，形成系统能力
+├── device/     # 3. 设备层：真实设备 SDK、设备协议、反馈缓存、设备抽象
+├── domain/     # 4. 领域层：运动学、控制模型、机构解算、纯算法模型
+├── infra/      # 5. 基础设施层：PID、滤波、矩阵、协议解析、HFSM、CRC、容器
+└── platform/   # 6. 平台层：芯片/HAL/FSP/CubeMX 外设适配、CAN/UART/PWM/GPIO/Tick
 ```
 
-核心原则：
+基本依赖规则：
 
-1. 下层不依赖上层；
-2. `app/` 不直接调用 HAL/FSP/CubeMX；
-3. `service/` 负责组合系统能力，不把设备协议暴露给 `app/`；
-4. `device/` 通过 PortOps/注册函数对接 `platform/`；
-5. `domain/` 和 `infra/` 尽量可脱离真实硬件测试；
-6. 所有执行机构必须先设计 stop/brake/fault/timeout/limit，再做功能
+- 下层不得依赖上层
+- app 只依赖 service 和少量 infra
+- service 可依赖 device/domain/infra，但不应把平台句柄暴露给 app
+- device 可依赖 domain/infra，对 platform 应优先通过 PortOps 或注册函数连接
+- domain 可依赖 infra，但不应依赖 device/platform
+- infra 应尽量无业务和芯片依赖，必要时通过 PortOps 或注册函数连接 platform
+- platform 是唯一允许直接包含 HAL/FSP/CMSIS/CubeMX 头文件的层
+
+另外：
+- service 负责 device/infra 与 platform 之间的对接，并完成系统能力的组合、缓存和安全策略
+- 如需提升性能或确定设备无法复用，则允许 device 直接依赖 platform，但应限制在内部实现，不暴露给上层
 
 ---
 
@@ -127,7 +136,7 @@ git submodule update --init --recursive
 含义：
 
 ```text
-父项目决定当前应该使用哪个标准版本；
+父项目决定当前应该使用哪个标准版本
 普通成员同步父项目后，submodule 更新到父项目记录的 commit
 ```
 
@@ -166,8 +175,8 @@ git submodule update --remote --recursive
 
 原因：
 
-1. 芯片平台适配强依赖 HAL/FSP/CubeMX/芯片工程生成代码；
-2. 不同平台的时钟、中断、DMA、Cache、串口、CAN 初始化差异很大；
+1. 芯片平台适配强依赖 HAL/FSP/CubeMX/芯片工程生成代码
+2. 不同平台的时钟、中断、DMA、Cache、串口、CAN 初始化差异很大
 3. 全部塞进本标准仓库会使仓库膨胀且边界混乱
 
 推荐做法：
@@ -235,21 +244,21 @@ sdks/device/
 
 涉及电机、舵机、底盘、机械臂、夹爪等执行机构时，禁止在以下条件下直接上真实硬件：
 
-1. 没有 stop/brake/fault 逻辑；
-2. 没有反馈超时判断；
-3. 没有速度/角度/电流/位置限幅；
-4. 没有低速测试；
-5. 没有确认急停链路；
-6. 没有记录测试 commit；
-7. app 层直接拼底层控制帧；
+1. 没有 stop/brake/fault 逻辑
+2. 没有反馈超时判断
+3. 没有速度/角度/电流/位置限幅
+4. 没有低速测试
+5. 没有确认急停链路
+6. 没有记录测试 commit
+7. app 层直接拼底层控制帧
 8. 中断中执行复杂控制和阻塞等待
 
 默认原则：
 
 ```text
-先安全，后功能；
-先低速，后高速；
-先单设备，后整机；
+先安全，后功能
+先低速，后高速
+先单设备，后整机
 先 mock/板级测试，后真实负载测试
 ```
 
