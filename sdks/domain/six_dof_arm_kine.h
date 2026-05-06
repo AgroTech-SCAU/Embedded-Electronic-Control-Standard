@@ -1,5 +1,5 @@
-#ifndef _s_fk_ik_h_
-#define _s_fk_ik_h_
+#ifndef SIX_DOF_ARM_KINE_H
+#define SIX_DOF_ARM_KINE_H
 
 #include <stdint.h>
 
@@ -7,13 +7,15 @@
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
 /**
- * @brief 机械臂单例用户自定义名称
+ * @brief 六轴机械臂运动学入口单例
+ * @note 当前模块只支持六轴串联机械臂，MDH 参数、关节输入和 IK/FK 解算均固定为 6 轴
  */
-#define arm s_fk_ik_instance
+#define six_dof_arm six_dof_arm_kine_instance
 
 #define ARM_STATUS_TABLE \
     X(SUCCESS) \
     X(ERROR) \
+    X(NOT_INITIALIZE) \
     X(INVALID_JOINTS) \
     X(INVALID_POSE) \
     X(SINGULARITY) \
@@ -28,6 +30,7 @@
  * @brief 机械臂错误码
  * @param ARM_STATUS_SUCCESS 成功
  * @param ARM_STATUS_ERROR 一般错误
+ * @param ARM_STATUS_NOT_INITIALIZE 六轴机械臂运动学未初始化
  * @param ARM_STATUS_INVALID_JOINTS 无效的关节输入
  * @param ARM_STATUS_INVALID_POSE 无效的位姿输入
  * @param ARM_STATUS_SINGULARITY 奇异点
@@ -182,7 +185,7 @@ typedef struct {
  * @param quat_to_rpy 四元数转RPY函数指针
  */
 #define X(name) const ArmStatus name;
-extern const struct FkIkInterface {
+extern const struct SixDofArmKineInterface {
     struct {
         ARM_STATUS_TABLE
     };
@@ -243,7 +246,7 @@ extern const struct FkIkInterface {
      * @return ArmStatus 错误码
      */
     ArmStatus(*quat_to_rpy)(const Quaternion q, RPY* rpy);
-} s_fk_ik_instance;
+} six_dof_arm_kine_instance;
 #undef X
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //

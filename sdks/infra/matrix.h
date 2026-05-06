@@ -52,7 +52,7 @@ typedef struct {
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
 /**
- * @brief 创建一个矩阵，用户需要提供数据缓冲区
+ * @brief 创建一个矩阵，原地创建一个静态 float 数组作为数据存储，name 可以直接使用
  * @param name 矩阵名称
  * @param row 行数
  * @param col 列数
@@ -65,7 +65,7 @@ typedef struct {
     matrix(&name, row, col, name##_data)
 
 /**
- * @brief 创建一个单位矩阵，用户需要提供数据缓冲区
+ * @brief 创建一个单位矩阵，原地创建一个静态 float 数组作为数据存储，name 可以直接使用
  * @param name 矩阵名称
  * @param size 矩阵的行列数，单位矩阵必须是方阵
  * @note 该宏会定义一个名为 name##_data 的 float 数组作为矩阵数据存储，并创建一个 Matrix 结构体指向该数据，然后将其初始化为单位矩阵

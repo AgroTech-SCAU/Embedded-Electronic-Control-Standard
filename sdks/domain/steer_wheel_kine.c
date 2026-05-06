@@ -12,6 +12,9 @@
 #define SW_HALF_PI (0.5f * SW_PI)
 #define SW_EPS 1e-6f
 
+/**
+ * @brief 舵轮运动学入口单例定义表
+ */
 #define X(name, str) .name = STEER_WHEEL_##name,
 const struct SteerWheelInterface steer_wheel_interface = {
     {
@@ -33,6 +36,12 @@ static void sw_optimize_module(float* target_angle, float* target_speed, float c
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
+/**
+ * @brief 初始化舵轮运动学实例
+ * @param steer_wheel 舵轮运动学实例指针
+ * @param model 底盘模型参数
+ * @return SteelWheelErrorCode 错误码
+ */
 SteelWheelErrorCode steer_wheel_init(SteerWheel* steer_wheel, SteerWheelModel model) {
     if(steer_wheel == NULL) return sw.INVALID_PARAM;
     if(model.length <= 0.0f || model.width <= 0.0f || model.wheel_radius <= 0.0f || model.max_wheel_linear_speed < 0.0f) return sw.INVALID_MODEL;
@@ -52,12 +61,19 @@ SteelWheelErrorCode steer_wheel_init(SteerWheel* steer_wheel, SteerWheelModel mo
     steer_wheel->state.cur_vx = 0.0f;
     steer_wheel->state.cur_vy = 0.0f;
     steer_wheel->state.cur_wz = 0.0f;
+    steer_wheel->initialized = 1u;
 
     return sw.OK;
 }
 
+/**
+ * @brief 正运动学解算，由四个轮模块反馈解算底盘速度
+ * @param steer_wheel 舵轮运动学实例指针
+ * @return SteelWheelErrorCode 错误码
+ */
 SteelWheelErrorCode steer_wheel_fk(SteerWheel* steer_wheel) {
     if(steer_wheel == NULL) return sw.INVALID_PARAM;
+    if(steer_wheel->initialized == 0u) return sw.NOT_INITIALIZE;
     if(steer_wheel->model.length <= 0.0f || steer_wheel->model.width <= 0.0f || steer_wheel->model.wheel_radius <= 0.0f) return sw.INVALID_MODEL;
 
     float x[4];
@@ -89,8 +105,14 @@ SteelWheelErrorCode steer_wheel_fk(SteerWheel* steer_wheel) {
     return sw.OK;
 }
 
+/**
+ * @brief 逆运动学解算，由底盘速度指令解算四个轮模块目标
+ * @param steer_wheel 舵轮运动学实例指针
+ * @return SteelWheelErrorCode 错误码
+ */
 SteelWheelErrorCode steer_wheel_ik(SteerWheel* steer_wheel) {
     if(steer_wheel == NULL) return sw.INVALID_PARAM;
+    if(steer_wheel->initialized == 0u) return sw.NOT_INITIALIZE;
     if(steer_wheel->model.length <= 0.0f || steer_wheel->model.width <= 0.0f || steer_wheel->model.wheel_radius <= 0.0f) return sw.INVALID_MODEL;
 
     float x[4];
@@ -133,6 +155,11 @@ SteelWheelErrorCode steer_wheel_ik(SteerWheel* steer_wheel) {
     return sw.OK;
 }
 
+/**
+ * @brief 舵轮运动学错误码转字符串
+ * @param status 错误码
+ * @return const char* 错误码字符串
+ */
 #define X(name, str) case STEER_WHEEL_##name: return str;
 const char* steer_wheel_error_code_to_str(SteelWheelErrorCode status) {
     switch(status) {
@@ -144,10 +171,20 @@ const char* steer_wheel_error_code_to_str(SteelWheelErrorCode status) {
 
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
 
+/**
+ * @brief 计算 float 绝对值
+ * @param x 输入值
+ * @return float 绝对值
+ */
 static float sw_absf(float x) {
     return (x >= 0.0f) ? x : -x;
 }
 
+/**
+ * @brief 将角度归一化到 (-pi, pi]
+ * @param angle 输入角度，单位 rad
+ * @return float 归一化后的角度，单位 rad
+ */
 static float sw_wrap_pi(float angle) {
     while(angle > SW_PI) {
         angle -= SW_2PI;
@@ -158,17 +195,29 @@ static float sw_wrap_pi(float angle) {
     return angle;
 }
 
+/**
+ * @brief 根据底盘模型计算四个轮模块相对底盘中心的位置
+ * @param model 底盘模型参数
+ * @param x 输出四个轮模块 x 坐标，单位 m，顺序为 FL、FR、RL、RR
+ * @param y 输出四个轮模块 y 坐标，单位 m，顺序为 FL、FR、RL、RR
+ */
 static void sw_get_wheel_pos(const SteerWheelModel* model, float x[4], float y[4]) {
     const float hx = model->length * 0.5f;
     const float hy = model->width * 0.5f;
 
-    /* 约定顺序: FL, FR, RL, RR */
+    // 约定顺序: FL, FR, RL, RR
     x[0] = hx;  y[0] = hy;
     x[1] = hx;  y[1] = -hy;
     x[2] = -hx;  y[2] = hy;
     x[3] = -hx;  y[3] = -hy;
 }
 
+/**
+ * @brief 优化单个舵轮目标角和目标速度，避免舵向旋转超过 90 度
+ * @param target_angle 目标舵向角输入输出，单位 rad
+ * @param target_speed 目标轮线速度输入输出，单位 m/s
+ * @param current_angle 当前舵向角，单位 rad
+ */
 static void sw_optimize_module(float* target_angle, float* target_speed, float current_angle) {
     float err = sw_wrap_pi(*target_angle - current_angle);
 

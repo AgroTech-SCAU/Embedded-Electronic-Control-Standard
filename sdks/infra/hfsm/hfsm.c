@@ -81,7 +81,7 @@ HfsmStatus hfsm_init(Hfsm* fsm, void* context) {
  */
 HfsmStatus hfsm_set_context(Hfsm* fsm, void* context) {
     if(fsm == NULL) return hfsm.INVALID_ARG;
-    if(fsm->initialized == false) return hfsm.NOT_INIT;
+    if(fsm->initialized == false) return hfsm.NOT_INITIALIZE;
     if(fsm->started) return hfsm.STARTED;
 
     fsm->machine.context = context;
@@ -97,7 +97,7 @@ HfsmStatus hfsm_set_context(Hfsm* fsm, void* context) {
  */
 HfsmStatus hfsm_set_initial(Hfsm* fsm, const HfsmState* initial_state) {
     if(fsm == NULL) return hfsm.INVALID_ARG;
-    if(fsm->initialized == false) return hfsm.NOT_INIT;
+    if(fsm->initialized == false) return hfsm.NOT_INITIALIZE;
     if(initial_state == NULL) return hfsm.INVALID_ARG;
     if(fsm->started) return hfsm.STARTED;
 
@@ -228,7 +228,7 @@ HfsmState* hfsm_set_user_data(HfsmState* s, void* user_data) {
  */
 HfsmStatus hfsm_start(Hfsm* fsm) {
     if(fsm == NULL) return hfsm.INVALID_ARG;
-    if(fsm->initialized == false) return hfsm.NOT_INIT;
+    if(fsm->initialized == false) return hfsm.NOT_INITIALIZE;
     if(fsm->initial_state == NULL) return hfsm.NO_INITIAL_STATE;
     if(fsm->started) return hfsm.STARTED;
 
@@ -245,7 +245,7 @@ HfsmStatus hfsm_start(Hfsm* fsm) {
  */
 HfsmStatus hfsm_pause(Hfsm* fsm) {
     if(fsm == NULL) return hfsm.INVALID_ARG;
-    if(fsm->initialized == false) return hfsm.NOT_INIT;
+    if(fsm->initialized == false) return hfsm.NOT_INITIALIZE;
     if(fsm->started == false) return hfsm.NOT_STARTED;
 
     fsm->started = false;
@@ -260,7 +260,7 @@ HfsmStatus hfsm_pause(Hfsm* fsm) {
  */
 HfsmStatus hfsm_go_on(Hfsm* fsm) {
     if(fsm == NULL) return hfsm.INVALID_ARG;
-    if(fsm->initialized == false) return hfsm.NOT_INIT;
+    if(fsm->initialized == false) return hfsm.NOT_INITIALIZE;
     if(fsm->started) return hfsm.STARTED;
 
     fsm->started = true;
@@ -275,7 +275,7 @@ HfsmStatus hfsm_go_on(Hfsm* fsm) {
  */
 HfsmStatus hfsm_reset(Hfsm* fsm) {
     if(fsm == NULL) return hfsm.INVALID_ARG;
-    if(fsm->initialized == false) return hfsm.NOT_INIT;
+    if(fsm->initialized == false) return hfsm.NOT_INITIALIZE;
 
     void* context = fsm->machine.context;
     hfsm_core.init(&fsm->machine, fsm->initial_state, context);
@@ -293,7 +293,7 @@ HfsmStatus hfsm_reset(Hfsm* fsm) {
  */
 HfsmStatus hfsm_post(Hfsm* fsm, HfsmEventId event_id, const void* data) {
     if(fsm == NULL) return hfsm.INVALID_ARG;
-    if(fsm->initialized == false) return hfsm.NOT_INIT;
+    if(fsm->initialized == false) return hfsm.NOT_INITIALIZE;
     if(fsm->started == false) return hfsm.NOT_STARTED;
     if(event_id == HFSM_EVENT_NONE) return hfsm.INVALID_ARG;
 
@@ -307,7 +307,7 @@ HfsmStatus hfsm_post(Hfsm* fsm, HfsmEventId event_id, const void* data) {
  */
 HfsmStatus hfsm_clear(Hfsm* fsm) {
     if(fsm == NULL) return hfsm.INVALID_ARG;
-    if(fsm->initialized == false) return hfsm.NOT_INIT;
+    if(fsm->initialized == false) return hfsm.NOT_INITIALIZE;
     if(fsm->started == false) return hfsm.NOT_STARTED;
 
     hfsm_core.clear(&fsm->machine);
@@ -322,7 +322,7 @@ HfsmStatus hfsm_clear(Hfsm* fsm) {
  */
 HfsmStatus hfsm_process(Hfsm* fsm) {
     if(fsm == NULL) return hfsm.INVALID_ARG;
-    if(fsm->initialized == false) return hfsm.NOT_INIT;
+    if(fsm->initialized == false) return hfsm.NOT_INITIALIZE;
     if(fsm->started == false) return hfsm.NOT_STARTED;
 
     hfsm_core.process(&fsm->machine);
@@ -337,7 +337,7 @@ HfsmStatus hfsm_process(Hfsm* fsm) {
  */
 HfsmStatus hfsm_process_all(Hfsm* fsm) {
     if(fsm == NULL) return hfsm.INVALID_ARG;
-    if(fsm->initialized == false) return hfsm.NOT_INIT;
+    if(fsm->initialized == false) return hfsm.NOT_INITIALIZE;
     if(fsm->started == false) return hfsm.NOT_STARTED;
 
     hfsm_core.process_all(&fsm->machine);

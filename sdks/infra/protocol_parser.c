@@ -29,6 +29,26 @@ static uint16_t crc16_update(uint16_t crc, uint8_t data);
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
+const RingBufInterface ring_buf_interface = {
+    .create = ring_buf_create,
+    .write = _rb_write,
+    .read = _rb_read,
+    .clear = _rb_clear,
+    .is_full = _rb_is_full,
+    .is_empty = _rb_is_empty,
+    .get_size = _rb_get_size,
+    .get_capacity = _rb_get_capacity,
+};
+
+const FrameParserInterface frame_parser_interface = {
+    .create = frame_parser_create,
+    .write = _fp_write_,
+    .process = _fp_process_,
+    .get_frame = _fp_get_frame_,
+    .finish = _fp_finish_,
+    .reset = _fp_reset_,
+};
+
 /**
  * @brief 环形缓冲区构造函数
  * @param self 指向 RingBuf 结构体的指针
@@ -37,18 +57,10 @@ static uint16_t crc16_update(uint16_t crc, uint8_t data);
  * @param overwrite 是否允许覆盖旧数据，1 表示允许，0 表示不允许
  * @return RingBufErrorCode 枚举类型，表示操作结果
  */
-RingBufErrorCode RingBufCreate(RingBuf* const self, uint8_t* const buf, const uint16_t capacity, const uint8_t overwrite) {
+RingBufErrorCode ring_buf_create(RingBuf* const self, uint8_t* const buf, const uint16_t capacity, const uint8_t overwrite) {
     if(self == NULL) return RING_BUF_ERR_NULL_PTR;
     if(buf == NULL) return RING_BUF_ERR_NULL_PTR;
     if(capacity == 0) return RING_BUF_ERR_FULL;
-
-    self->write = _rb_write;
-    self->read = _rb_read;
-    self->clear = _rb_clear;
-    self->is_full = _rb_is_full;
-    self->is_empty = _rb_is_empty;
-    self->get_size = _rb_get_size;
-    self->get_capacity = _rb_get_capacity;
 
     self->_buf_ = buf;
     self->_size_ = 0;
@@ -58,8 +70,13 @@ RingBufErrorCode RingBufCreate(RingBuf* const self, uint8_t* const buf, const ui
     self->_read_idx_ = 0;
 
     self->_overwrite_ = overwrite;
+    self->_initialized_ = true;
 
     return RING_BUF_SUCCESS;
+}
+
+RingBufErrorCode RingBufCreate(RingBuf* const self, uint8_t* const buf, const uint16_t capacity, const uint8_t overwrite) {
+    return ring_buf_create(self, buf, capacity, overwrite);
 }
 
 /**
@@ -74,19 +91,13 @@ RingBufErrorCode RingBufCreate(RingBuf* const self, uint8_t* const buf, const ui
  * @return FrameParserErrorCode 枚举类型，表示操作结果
  * @note 帧格式：[header][length_high][length_low][payload][crc_high][crc_low]，其中 crc 部分可选，由 crc_enabled 参数控制
  */
-FrameParserErrorCode FrameParserCreate(FrameParser* const self, RingBuf* const ring_buf, const uint8_t* const header, const uint8_t header_length, uint8_t* const frame_buf, const uint16_t frame_buf_capacity, const bool crc_enabled) {
+FrameParserErrorCode frame_parser_create(FrameParser* const self, RingBuf* const ring_buf, const uint8_t* const header, const uint8_t header_length, uint8_t* const frame_buf, const uint16_t frame_buf_capacity, const bool crc_enabled) {
     if(self == NULL) return FRAME_PARSER_ERR_NULL_PTR;
     if(ring_buf == NULL) return FRAME_PARSER_ERR_NULL_PTR;
     if(header == NULL) return FRAME_PARSER_ERR_NULL_PTR;
     if(header_length < 2) return FRAME_PARSER_ERR_HEADER_TOO_SHORT;
     if(frame_buf == NULL) return FRAME_PARSER_ERR_NULL_PTR;
     if(frame_buf_capacity == 0) return FRAME_PARSER_ERR_BUF_TOO_SMALL;
-
-    self->write = _fp_write_;
-    self->process = _fp_process_;
-    self->get_frame = _fp_get_frame_;
-    self->finish = _fp_finish_;
-    self->reset = _fp_reset_;
 
     self->_ring_buf_ = ring_buf;
     self->_state_ = STATE_IDLE;
@@ -101,12 +112,17 @@ FrameParserErrorCode FrameParserCreate(FrameParser* const self, RingBuf* const r
     self->_crc_enabled_ = crc_enabled;
     self->_crc_accum_ = 0;
     self->_received_crc_ = 0;
+    self->_initialized_ = true;
 
     self->_expected_length_ = 0;
     self->_received_length_ = 0;
 
     return FRAME_PARSER_SUCCESS;
 
+}
+
+FrameParserErrorCode FrameParserCreate(FrameParser* const self, RingBuf* const ring_buf, const uint8_t* const header, const uint8_t header_length, uint8_t* const frame_buf, const uint16_t frame_buf_capacity, const bool crc_enabled) {
+    return frame_parser_create(self, ring_buf, header, header_length, frame_buf, frame_buf_capacity, crc_enabled);
 }
 
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
@@ -119,17 +135,18 @@ FrameParserErrorCode FrameParserCreate(FrameParser* const self, RingBuf* const r
  */
 RingBufErrorCode _rb_write(RingBuf* const self, const uint8_t data) {
     if(self == NULL) return RING_BUF_ERR_NULL_PTR;
+    if(self->_initialized_ == false) return RING_BUF_ERR_NOT_INITIALIZE;
 
     protocol_parser_enter_critical();
 
     if(self->_overwrite_) {
         self->_buf_[self->_write_idx_] = data;
         self->_write_idx_ = (uint16_t)((self->_write_idx_ + 1) % self->_capacity_);
-        if(self->is_full(self)) self->_read_idx_ = (uint16_t)((self->_read_idx_ + 1) % self->_capacity_);
+        if(_rb_is_full(self)) self->_read_idx_ = (uint16_t)((self->_read_idx_ + 1) % self->_capacity_);
         else self->_size_++;
     }
     else {
-        if(self->is_full(self)) {
+        if(_rb_is_full(self)) {
             protocol_parser_exit_critical();
             return RING_BUF_ERR_FULL;
         }
@@ -151,8 +168,9 @@ RingBufErrorCode _rb_write(RingBuf* const self, const uint8_t data) {
  */
 RingBufErrorCode _rb_read(RingBuf* const self, uint8_t* const data) {
     if(self == NULL) return RING_BUF_ERR_NULL_PTR;
+    if(self->_initialized_ == false) return RING_BUF_ERR_NOT_INITIALIZE;
     if(data == NULL) return RING_BUF_ERR_NULL_PTR;
-    if(self->is_empty(self)) return RING_BUF_ERR_EMPTY;
+    if(_rb_is_empty(self)) return RING_BUF_ERR_EMPTY;
 
     protocol_parser_enter_critical();
 
@@ -172,6 +190,7 @@ RingBufErrorCode _rb_read(RingBuf* const self, uint8_t* const data) {
  */
 RingBufErrorCode _rb_clear(RingBuf* const self) {
     if(self == NULL) return RING_BUF_ERR_NULL_PTR;
+    if(self->_initialized_ == false) return RING_BUF_ERR_NOT_INITIALIZE;
 
     protocol_parser_enter_critical();
 
@@ -191,6 +210,7 @@ RingBufErrorCode _rb_clear(RingBuf* const self) {
  */
 int8_t _rb_is_full(RingBuf* const self) {
     if(self == NULL) return -1;
+    if(self->_initialized_ == false) return -1;
 
     return (self->_size_ >= self->_capacity_) ? 1 : 0;
 }
@@ -202,6 +222,7 @@ int8_t _rb_is_full(RingBuf* const self) {
  */
 int8_t _rb_is_empty(RingBuf* const self) {
     if(self == NULL) return -1;
+    if(self->_initialized_ == false) return -1;
 
     return (self->_size_ == 0) ? 1 : 0;
 }
@@ -213,6 +234,7 @@ int8_t _rb_is_empty(RingBuf* const self) {
  */
 int _rb_get_size(RingBuf* const self) {
     if(self == NULL) return -1;
+    if(self->_initialized_ == false) return -1;
 
     return (int)(self->_size_);
 }
@@ -224,6 +246,7 @@ int _rb_get_size(RingBuf* const self) {
  */
 int _rb_get_capacity(RingBuf* const self) {
     if(self == NULL) return -1;
+    if(self->_initialized_ == false) return -1;
 
     return (int)(self->_capacity_);
 }
@@ -236,8 +259,9 @@ int _rb_get_capacity(RingBuf* const self) {
  */
 static FrameParserErrorCode _fp_write_(FrameParser* const self, const uint8_t data) {
     if(self == NULL) return FRAME_PARSER_ERR_NULL_PTR;
+    if(self->_initialized_ == false) return FRAME_PARSER_ERR_NOT_INITIALIZE;
 
-    switch(self->_ring_buf_->write(self->_ring_buf_, data)) {
+    switch(_rb_write(self->_ring_buf_, data)) {
         case RING_BUF_SUCCESS:
             break;
         case RING_BUF_ERR_NULL_PTR:
@@ -258,9 +282,10 @@ static FrameParserErrorCode _fp_write_(FrameParser* const self, const uint8_t da
  */
 static FrameParserErrorCode _fp_process_(FrameParser* const self) {
     if(self == NULL) return FRAME_PARSER_ERR_NULL_PTR;
+    if(self->_initialized_ == false) return FRAME_PARSER_ERR_NOT_INITIALIZE;
 
     uint8_t byte;
-    while(self->_ring_buf_->read(self->_ring_buf_, &byte) == RING_BUF_SUCCESS) {
+    while(_rb_read(self->_ring_buf_, &byte) == RING_BUF_SUCCESS) {
         switch(self->_state_) {
             case STATE_IDLE:
             {
@@ -374,6 +399,7 @@ static FrameParserErrorCode _fp_process_(FrameParser* const self) {
  */
 static FrameParserErrorCode _fp_get_frame_(FrameParser* const self, uint8_t** const frame_buffer, uint16_t* const frame_length) {
     if(self == NULL) return FRAME_PARSER_ERR_NULL_PTR;
+    if(self->_initialized_ == false) return FRAME_PARSER_ERR_NOT_INITIALIZE;
     if(frame_buffer == NULL) return FRAME_PARSER_ERR_NULL_PTR;
     if(frame_length == NULL) return FRAME_PARSER_ERR_NULL_PTR;
     if(self->_state_ != STATE_FRAME_COMPLETE) return FRAME_PARSER_ERR_NO_FRAME;
@@ -391,6 +417,7 @@ static FrameParserErrorCode _fp_get_frame_(FrameParser* const self, uint8_t** co
  */
 static FrameParserErrorCode _fp_finish_(FrameParser* const self) {
     if(self == NULL) return FRAME_PARSER_ERR_NULL_PTR;
+    if(self->_initialized_ == false) return FRAME_PARSER_ERR_NOT_INITIALIZE;
 
     self->_state_ = STATE_IDLE;
     self->_header_match_idx_ = 0;
@@ -409,10 +436,11 @@ static FrameParserErrorCode _fp_finish_(FrameParser* const self) {
  */
 static FrameParserErrorCode _fp_reset_(FrameParser* const self) {
     if(self == NULL) return FRAME_PARSER_ERR_NULL_PTR;
+    if(self->_initialized_ == false) return FRAME_PARSER_ERR_NOT_INITIALIZE;
 
-    self->_ring_buf_->clear(self->_ring_buf_);
+    _rb_clear(self->_ring_buf_);
 
-    return self->finish(self);
+    return _fp_finish_(self);
 }
 
 /**

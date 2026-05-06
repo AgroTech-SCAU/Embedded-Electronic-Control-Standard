@@ -1,4 +1,4 @@
-#include "arm_kine.h"
+#include "six_dof_arm_kine.h"
 
 #include <math.h>
 #include <string.h>
@@ -8,7 +8,7 @@
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
-const struct FkIkInterface s_fk_ik_instance = {
+const struct SixDofArmKineInterface six_dof_arm_kine_instance = {
     .init = s_six_dof_init,
     .fk = s_six_dof_fk,
     .ik = s_six_dof_ik,
@@ -20,6 +20,7 @@ const struct FkIkInterface s_fk_ik_instance = {
 
 /// @brief 机械臂的 MDH 参数
 static ArmMDH arm_mdh = { 0 };
+static bool arm_initialized = false;
 
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
 
@@ -47,6 +48,7 @@ static bool solution_is_unique(const SixDofJointAll* sols, const SixDofJoint* ca
 ArmStatus s_six_dof_init(const ArmMDH* mdh) {
     if(mdh == NULL) return ARM_STATUS_ERROR;
     arm_mdh = *mdh;
+    arm_initialized = true;
     return ARM_STATUS_SUCCESS;
 }
 
@@ -57,6 +59,7 @@ ArmStatus s_six_dof_init(const ArmMDH* mdh) {
  * @return ArmStatus 错误码
  */
 ArmStatus s_six_dof_fk(const SixDofJoint* joints, Pose* pose) {
+    if(arm_initialized == false) return ARM_STATUS_NOT_INITIALIZE;
     if(joints == NULL || pose == NULL) return ARM_STATUS_ERROR;
 
     matrix_create(q, 6, 1);
@@ -78,6 +81,7 @@ ArmStatus s_six_dof_fk(const SixDofJoint* joints, Pose* pose) {
  * @return ArmStatus 错误码
  */
 ArmStatus s_six_dof_ik(const Pose* pose, SixDofJoint* joints, const SixDofJoint* current_joints, IkMode mode) {
+    if(arm_initialized == false) return ARM_STATUS_NOT_INITIALIZE;
     if(!pose || !joints || !current_joints)
         return ARM_STATUS_ERROR;
 
@@ -203,6 +207,7 @@ ArmStatus s_six_dof_ik(const Pose* pose, SixDofJoint* joints, const SixDofJoint*
  * @return ArmStatus 错误码
  */
 ArmStatus s_six_dof_all_ik(const Pose* pose, SixDofJointAll* joints, IkMode mode) {
+    if(arm_initialized == false) return ARM_STATUS_NOT_INITIALIZE;
     if(!pose || !joints) return ARM_STATUS_ERROR;
 
     joints->num_solutions = 0;

@@ -15,6 +15,16 @@ void protocol_parser_exit_critical(void);
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
 /**
+ * @brief 环形缓冲区入口单例，用户自定义名称
+ */
+#define ring_buf ring_buf_interface
+
+/**
+ * @brief 帧解析器入口单例，用户自定义名称
+ */
+#define frame_parser frame_parser_interface
+
+/**
  * @brief 环形缓冲区错误枚举类型
  * @param RING_BUF_SUCCESS: 操作成功
  * @param RING_BUF_ERR_NULL_PTR: 指针为 NULL 错误
@@ -28,6 +38,7 @@ typedef enum {
     RING_BUF_ERR_IN_USE,
     RING_BUF_ERR_FULL,
     RING_BUF_ERR_EMPTY,
+    RING_BUF_ERR_NOT_INITIALIZE,
 } RingBufErrorCode;
 
 /**
@@ -53,6 +64,7 @@ typedef enum {
     FRAME_PARSER_ERR_LENGTH_EXCEED,
     FRAME_PARSER_ERR_NO_FRAME,
     FRAME_PARSER_ERR_CRC_MISMATCH,
+    FRAME_PARSER_ERR_NOT_INITIALIZE,
 } FrameParserErrorCode;
 
 /**
@@ -76,57 +88,7 @@ typedef enum {
 /**
  * @brief 环形缓冲区结构体定义
  */
-typedef struct RingBuf RingBuf;
-struct RingBuf {
-/// public:
-    /**
-     * @brief 向环形缓冲区写入单个数据
-     * @param self 指向 RingBuf 结构体的指针
-     * @param data 要写入的数据
-     * @return RingBufErrorCode 枚举类型，表示操作结果
-     */
-    RingBufErrorCode(*write)(RingBuf* const self, const uint8_t data);
-    /**
-     * @brief 从环形缓冲区读取单个数据
-     * @param self 指向 RingBuf 结构体的指针
-     * @param data 指向存储读取数据的变量的指针
-     * @return RingBufErrorCode 枚举类型，表示操作结果
-     */
-    RingBufErrorCode(*read)(RingBuf* const self, uint8_t* const data);
-    /**
-     * @brief 清空环形缓冲区
-     * @param self 指向 RingBuf 结构体的指针
-     * @return RingBufErrorCode 枚举类型，表示操作结果
-     */
-    RingBufErrorCode(*clear)(RingBuf* const self);
-
-    /**
-     * @brief 检查环形缓冲区是否已满
-     * @param self 指向 RingBuf 结构体的指针
-     * @return 1 表示已满，0 表示未满，-1 表示错误
-     */
-    int8_t(*is_full)(RingBuf* const self);
-    /**
-     * @brief 检查环形缓冲区是否为空
-     * @param self 指向 RingBuf 结构体的指针
-     * @return 1 表示为空，0 表示非空，-1 表示错误
-     */
-    int8_t(*is_empty)(RingBuf* const self);
-
-    /**
-     * @brief 获取环形缓冲区当前存储的数据量
-     * @param self 指向 RingBuf 结构体的指针
-     * @return 当前存储的数据量，-1 表示错误
-     */
-    int(*get_size)(RingBuf* const self);
-    /**
-     * @brief 获取环形缓冲区的总容量
-     * @param self 指向 RingBuf 结构体的指针
-     * @return 环形缓冲区的总容量，-1 表示错误
-     */
-    int(*get_capacity)(RingBuf* const self);
-
-/// private:
+typedef struct {
     // 缓冲区指针
     uint8_t* _buf_;
     // 缓冲区当前数据量
@@ -141,55 +103,14 @@ struct RingBuf {
 
     // 是否允许覆盖旧数据
     uint8_t _overwrite_;
-};
+    // 是否已初始化
+    bool _initialized_;
+} RingBuf;
 
 /**
  * @brief 帧解析器结构体定义
  */
-typedef struct FrameParser FrameParser;
-struct FrameParser {
-/// public:
-
-    /**
-     * @brief 向帧解析器写入单个数据
-     * @param self 指向 FrameParser 结构体的指针
-     * @param data 要写入的数据
-     * @return FrameParserErrorCode 枚举类型，表示操作结果
-     */
-    FrameParserErrorCode(*write)(FrameParser* const self, const uint8_t data);
-
-    /**
-     * @brief 处理帧解析器状态机
-     * @param self 指向 FrameParser 结构体的指针
-     * @return FrameParserErrorCode 枚举类型，表示操作结果
-     */
-    FrameParserErrorCode(*process)(FrameParser* const self);
-
-    /**
-     * @brief 获取解析完成的帧数据，仅在 process() 返回成功且状态为 STATE_FRAME_COMPLETE 时有效
-     * @param self 指向 FrameParser 结构体的指针
-     * @param frame_buffer 输出参数，指向存储帧数据的缓冲区指针
-     * @param frame_length 输出参数，指向存储帧数据长度的变量指针
-     * @return FrameParserErrorCode 枚举类型，表示操作结果
-     */
-    FrameParserErrorCode(*get_frame)(FrameParser* const self, uint8_t** const frame_buffer, uint16_t* const frame_length);
-
-    /**
-     * @brief 标记当前帧已处理完毕，将状态机复位至空闲
-     * @param self 指向 FrameParser 结构体的指针
-     * @return FrameParserErrorCode 枚举类型，表示操作结果
-     */
-    FrameParserErrorCode(*finish)(FrameParser* const self);
-
-    /**
-     * @brief 完全重置帧解析器，同时清空环形缓冲区
-     * @param self 指向 FrameParser 结构体的指针
-     * @return FrameParserErrorCode 枚举类型，表示操作结果
-     */
-    FrameParserErrorCode(*reset)(FrameParser* const self);
-
-/// private:
-
+typedef struct {
     // 指向关联的环形缓冲区的指针
     RingBuf* _ring_buf_;
     // 帧解析器当前状态
@@ -218,11 +139,36 @@ struct FrameParser {
     uint16_t _crc_accum_;
     // 已接收的 CRC 校验值
     uint16_t _received_crc_;
-};
+    // 是否已初始化
+    bool _initialized_;
+} FrameParser;
+
+typedef struct {
+    RingBufErrorCode(*create)(RingBuf* const self, uint8_t* const buf, const uint16_t capacity, const uint8_t overwrite);
+    RingBufErrorCode(*write)(RingBuf* const self, const uint8_t data);
+    RingBufErrorCode(*read)(RingBuf* const self, uint8_t* const data);
+    RingBufErrorCode(*clear)(RingBuf* const self);
+    int8_t(*is_full)(RingBuf* const self);
+    int8_t(*is_empty)(RingBuf* const self);
+    int(*get_size)(RingBuf* const self);
+    int(*get_capacity)(RingBuf* const self);
+} RingBufInterface;
+
+typedef struct {
+    FrameParserErrorCode(*create)(FrameParser* const self, RingBuf* const ring_buf, const uint8_t* const header, const uint8_t header_length, uint8_t* const frame_buf, const uint16_t frame_buf_capacity, const bool crc_enabled);
+    FrameParserErrorCode(*write)(FrameParser* const self, const uint8_t data);
+    FrameParserErrorCode(*process)(FrameParser* const self);
+    FrameParserErrorCode(*get_frame)(FrameParser* const self, uint8_t** const frame_buffer, uint16_t* const frame_length);
+    FrameParserErrorCode(*finish)(FrameParser* const self);
+    FrameParserErrorCode(*reset)(FrameParser* const self);
+} FrameParserInterface;
+
+extern const RingBufInterface ring_buf_interface;
+extern const FrameParserInterface frame_parser_interface;
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
-RingBufErrorCode RingBufCreate(RingBuf* const self, uint8_t* const buf, const uint16_t capacity, const uint8_t overwrite);
-FrameParserErrorCode FrameParserCreate(FrameParser* const self, RingBuf* const ring_buf, const uint8_t* const header, const uint8_t header_length, uint8_t* const frame_buf, const uint16_t frame_buf_capacity, const bool crc_enabled);
+RingBufErrorCode ring_buf_create(RingBuf* const self, uint8_t* const buf, const uint16_t capacity, const uint8_t overwrite);
+FrameParserErrorCode frame_parser_create(FrameParser* const self, RingBuf* const ring_buf, const uint8_t* const header, const uint8_t header_length, uint8_t* const frame_buf, const uint16_t frame_buf_capacity, const bool crc_enabled);
 
 #endif

@@ -17,7 +17,7 @@
 #define HFSM_STATUS_TABLE \
     SX(OK) \
     SX(INVALID_ARG) \
-    SX(NOT_INIT) \
+    SX(NOT_INITIALIZE) \
     SX(NO_INITIAL_STATE) \
     SX(STARTED) \
     SX(NOT_STARTED) \
@@ -27,7 +27,7 @@
  * @brief HFSM 状态码，由 X-Macro 自动生成枚举类型
  * @param HFSM_STATUS_OK 操作成功
  * @param HFSM_STATUS_INVALID_ARG 无效参数
- * @param HFSM_STATUS_NOT_INIT 状态机未初始化
+ * @param HFSM_STATUS_NOT_INITIALIZE 状态机未初始化
  * @param HFSM_STATUS_NO_INITIAL_STATE 没有设置初始状态
  * @param HFSM_STATUS_STARTED 状态机已启动
  * @param HFSM_STATUS_NOT_STARTED 状态机未启动
