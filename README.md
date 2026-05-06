@@ -50,8 +50,8 @@ src/
 
 - 下层不得依赖上层
 - app 只依赖 service 和少量 infra
-- service 可依赖 device/domain/infra，但不应把平台句柄暴露给 app
-- device 可依赖 domain/infra，对 platform 应优先通过 PortOps 或注册函数连接
+- service 可依赖 device/domain/infra，并在自身 init 中完成 device/infra 与 platform 的 PortOps 对接
+- device/infra 优先把 PortOps 合并进 init 配置，避免 register 和 init 分开调用导致漏绑定
 - domain 可依赖 infra，但不应依赖 device/platform
 - infra 应尽量无业务和芯片依赖，必要时通过 PortOps 或注册函数连接 platform
 - platform 是唯一允许直接包含 HAL/FSP/CMSIS/CubeMX 头文件的层
