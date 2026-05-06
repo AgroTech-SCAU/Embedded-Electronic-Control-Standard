@@ -1,8 +1,8 @@
-<center>
+<div align="center">
 
 # Embedded-Electronic-Control-Standard
 
-</center>
+</div>
 
 > AgroTech 协会嵌入式电控开发标准：用于统一电控项目的目录分层、开发顺序、SDK 复用方式、Git/GitHub 协作流程、芯片平台适配方式和安全调试规范
 
