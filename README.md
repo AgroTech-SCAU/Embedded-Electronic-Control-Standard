@@ -26,9 +26,9 @@ Status: Draft v0.1
 | `plan.md` | 标准建设计划、阶段目标、后续要补齐的内容 |
 | `通用开发流文档.md` | 架构分层、开发顺序、模块边界、安全约束 |
 | `团队协作开发文档.md` | Git/GitHub、分支、commit、PR、issue、submodule 协作规范 |
-| `sdks/infra/` | 通用基础设施 SDK，例如 delay、matrix、PID、parser、HFSM |
+| `sdks/infra/` | 通用基础设施 SDK，例如 delay、matrix、PID、parser、HFSM、logger |
 | `sdks/domain/` | 领域/算法 SDK，例如机械臂运动学、舵轮运动学 |
-| `sdks/device/` | 常用真实设备 SDK，后续用于 motor、servo、encoder、IMU 等 |
+| `sdks/device/` | 常用真实设备 SDK，例如 motor、WS2812，后续用于 servo、encoder、IMU 等 |
 
 ---
 
@@ -213,7 +213,8 @@ sdks/infra/
 ├── matrix.c / matrix.h
 ├── pid.c / pid.h
 ├── protocol_parser.c / protocol_parser.h
-└── hfsm/
+├── hfsm/
+└── logger/
 ```
 
 > 定位：与真实硬件尽量解耦的基础设施模块
@@ -232,9 +233,11 @@ sdks/domain/
 
 ```text
 sdks/device/
-└── motor/
-    ├── motor.c / motor.h
-    └── dm_motor.c / dm_motor.h
+├── motor/
+│   ├── motor.c / motor.h
+│   └── dm_motor.c / dm_motor.h
+└── ws2812/
+    └── ws2812.c / ws2812.h
 ```
 
 设备 SDK 必须通过 PortOps/注册函数与平台层对接，不应在 public header 中直接暴露 `stm32xxx_hal.h`、`hal_data.h` 等芯片头文件
