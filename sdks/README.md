@@ -53,4 +53,6 @@ sdks/
 ## 5. 示例参考
 
 - `sdks/device/motor/`：电机统一接口、入口单例、PortOps 和达妙电机实例
+- `sdks/infra/log.h` / `sdks/infra/log.c`：可替换输出端口的轻量日志接口
+- `sdks/device/rgb_led/`：RGB 灯统一接口，当前包含 WS2812/NeoPixel 实例
 - `examples/module_design/portops_motor_device/`：从需求、接口、mock port 到 service 绑定的贯穿式示例
