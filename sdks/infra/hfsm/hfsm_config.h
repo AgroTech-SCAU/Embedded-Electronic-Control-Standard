@@ -1,6 +1,7 @@
 #ifndef _hfsm_core_config_h_
 #define _hfsm_core_config_h_
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /**
@@ -38,17 +39,17 @@ typedef union {
 #endif
 
 /**
- * @brief 状态机进程是否执行所有祖先状态的动作，1 表示执行，0 表示只执行当前状态的动作
+ * @brief 状态机进程是否执行所有祖先状态的动作，true 表示执行，false 表示只执行当前状态的动作
  */
 #ifndef HFSM_RUN_PARENT_ACTIONS
-#define HFSM_RUN_PARENT_ACTIONS 1
+#define HFSM_RUN_PARENT_ACTIONS true
 #endif
 
 /**
- * @brief 是否启用断言，1 表示启用，0 表示禁用
+ * @brief 是否启用断言，true 表示启用，false 表示禁用
  */
 #ifndef HFSM_ENABLE_ASSERT
-#define HFSM_ENABLE_ASSERT 1
+#define HFSM_ENABLE_ASSERT true
 #endif
 
 /**

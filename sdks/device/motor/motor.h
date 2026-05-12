@@ -1,6 +1,7 @@
 #ifndef MOTOR_H
 #define MOTOR_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
@@ -70,14 +71,14 @@ typedef struct {
 
 /**
  * @brief 电机底层端口函数表，由 service init 绑定 platform 或 adapter
- * @param send 发送一帧电机总线数据，返回 0 表示成功
- * @param read 读取一帧电机总线数据，返回 0 表示成功
+ * @param send 发送一帧电机总线数据，返回 true 表示成功
+ * @param read 读取一帧电机总线数据，返回 true 表示成功
  * @param now_ms 获取系统毫秒时基
  * @param delay_ms 可选阻塞延时函数，用于部分电机协议的短等待
  */
 typedef struct {
-    int(*send)(uint32_t id, const uint8_t* data, uint8_t len);
-    int(*read)(uint32_t* id, uint8_t* data, uint8_t* len);
+    bool(*send)(uint32_t id, const uint8_t* data, uint8_t len);
+    bool(*read)(uint32_t* id, uint8_t* data, uint8_t* len);
     uint32_t(*now_ms)(void);
     void(*delay_ms)(uint32_t ms);
 } MotorPortOps;

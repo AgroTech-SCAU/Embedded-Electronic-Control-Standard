@@ -7,7 +7,7 @@ static const MotorDevicePortOps* s_ops;
 static uint32_t s_feedback_timeout_ms;
 static MotorDeviceFeedback s_feedback;
 
-static int port_ready(void) {
+static bool port_ready(void) {
     return s_ops != NULL && s_ops->send != NULL && s_ops->read != NULL && s_ops->now_ms != NULL;
 }
 
@@ -40,7 +40,7 @@ MotorDeviceStatus motor_device_set_speed(uint16_t id, float speed_rad_s) {
     frame[0] = (uint8_t)(speed_mrad_s >> 8);
     frame[1] = (uint8_t)(speed_mrad_s & 0xFF);
 
-    if(s_ops->send(0x200u + id, frame, sizeof(frame)) != 0) {
+    if(s_ops->send(0x200u + id, frame, sizeof(frame)) == false) {
         return MOTOR_DEVICE_PORT_ERROR;
     }
 
@@ -61,7 +61,7 @@ MotorDeviceStatus motor_device_update(MotorDeviceFeedback* out) {
         return MOTOR_DEVICE_INVALID_PARAM;
     }
 
-    if(s_ops->read(&frame_id, data, &len) != 0 || len < 2u) {
+    if(s_ops->read(&frame_id, data, &len) == false || len < 2u) {
         return MOTOR_DEVICE_PORT_ERROR;
     }
 

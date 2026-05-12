@@ -56,9 +56,9 @@ typedef struct {
      * @brief 写出一段日志文本
      * @param data 文本缓冲区指针
      * @param len 文本长度，单位 byte
-     * @return 0 表示成功，非 0 表示输出失败
+     * @return true 表示成功，false 表示输出失败
      */
-    int (*write)(const char* data, uint32_t len);
+    bool (*write)(const char* data, uint32_t len);
 } LogPortOps;
 
 /**

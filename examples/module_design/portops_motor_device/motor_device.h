@@ -20,8 +20,8 @@ typedef struct {
 } MotorDeviceFeedback;
 
 typedef struct {
-    int(*send)(uint32_t id, const uint8_t* data, uint8_t len);
-    int(*read)(uint32_t* id, uint8_t* data, uint8_t* len);
+    bool(*send)(uint32_t id, const uint8_t* data, uint8_t len);
+    bool(*read)(uint32_t* id, uint8_t* data, uint8_t* len);
     uint32_t(*now_ms)(void);
 } MotorDevicePortOps;
 

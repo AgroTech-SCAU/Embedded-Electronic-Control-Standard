@@ -4,11 +4,11 @@ static uint32_t s_now_ms;
 static uint32_t s_last_tx_id;
 static uint8_t s_last_tx_data[8];
 
-static int mock_send(uint32_t id, const uint8_t* data, uint8_t len) {
+static bool mock_send(uint32_t id, const uint8_t* data, uint8_t len) {
     uint8_t i;
 
     if(data == 0 || len > sizeof(s_last_tx_data)) {
-        return -1;
+        return false;
     }
 
     s_last_tx_id = id;
@@ -17,19 +17,19 @@ static int mock_send(uint32_t id, const uint8_t* data, uint8_t len) {
         s_last_tx_data[i] = data[i];
     }
 
-    return 0;
+    return true;
 }
 
-static int mock_read(uint32_t* id, uint8_t* data, uint8_t* len) {
+static bool mock_read(uint32_t* id, uint8_t* data, uint8_t* len) {
     if(id == 0 || data == 0 || len == 0 || *len < 2u) {
-        return -1;
+        return false;
     }
 
     *id = s_last_tx_id;
     data[0] = s_last_tx_data[0];
     data[1] = s_last_tx_data[1];
     *len = 2u;
-    return 0;
+    return true;
 }
 
 static uint32_t mock_now_ms(void) {

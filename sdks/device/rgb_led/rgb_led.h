@@ -1,6 +1,7 @@
 #ifndef RGB_LED_H
 #define RGB_LED_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
@@ -65,9 +66,9 @@ typedef struct {
      * @brief 写出已经编码好的灯带时序数据
      * @param data 发送数据缓冲区
      * @param len 发送数据长度，单位 byte
-     * @return 0 表示成功，非 0 表示输出失败
+     * @return true 表示成功，false 表示输出失败
      */
-    int (*write)(const uint8_t* data, uint32_t len);
+    bool (*write)(const uint8_t* data, uint32_t len);
 } RgbLedPortOps;
 
 /**

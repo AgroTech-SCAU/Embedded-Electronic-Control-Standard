@@ -68,13 +68,13 @@ rgb_led_show();
 
 ```c
 typedef struct {
-    int (*write)(const uint8_t* data, uint32_t len);
+    bool (*write)(const uint8_t* data, uint32_t len);
 } RgbLedPortOps;
 ```
 
 PortOps 由 entry/service 绑定 platform 或 adapter；RGB LED SDK 不直接依赖 HAL/FSP/CubeMX
 
-`write` 接收的是已经由具体实例编码好的时序发送缓存；返回 `0` 表示成功，非 `0` 表示底层输出失败
+`write` 接收的是已经由具体实例编码好的时序发送缓存；返回 `true` 表示成功，`false` 表示底层输出失败
 
 ---
 
@@ -159,6 +159,7 @@ static inline void entry_loop(void) {
 
 - 上层优先依赖 `rgb_led.h` 统一接口
 - 具体实现只负责自己的颜色缓存、时序编码和发送实现
+- 具体实例内部的初始化、启用等二值状态使用 `bool` / `true` / `false`，不再用 `uint8_t` 或 `0/1` 表示
 - `ws2812_rgb_led.*` 不直接 include platform 头文件
 - platform 对接统一放在 entry/service init 或 adapter 中
 - 调用 `rgb_led.xxx` 前需要先 `rgb_led_set_instance(...)`

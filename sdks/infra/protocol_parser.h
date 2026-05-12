@@ -102,7 +102,7 @@ typedef struct {
     uint16_t _read_idx_;
 
     // 是否允许覆盖旧数据
-    uint8_t _overwrite_;
+    bool _overwrite_;
     // 是否已初始化
     bool _initialized_;
 } RingBuf;
@@ -144,12 +144,12 @@ typedef struct {
 } FrameParser;
 
 typedef struct {
-    RingBufErrorCode(*create)(RingBuf* const self, uint8_t* const buf, const uint16_t capacity, const uint8_t overwrite);
+    RingBufErrorCode(*create)(RingBuf* const self, uint8_t* const buf, const uint16_t capacity, const bool overwrite);
     RingBufErrorCode(*write)(RingBuf* const self, const uint8_t data);
     RingBufErrorCode(*read)(RingBuf* const self, uint8_t* const data);
     RingBufErrorCode(*clear)(RingBuf* const self);
-    int8_t(*is_full)(RingBuf* const self);
-    int8_t(*is_empty)(RingBuf* const self);
+    bool(*is_full)(RingBuf* const self);
+    bool(*is_empty)(RingBuf* const self);
     int(*get_size)(RingBuf* const self);
     int(*get_capacity)(RingBuf* const self);
 } RingBufInterface;
@@ -168,7 +168,7 @@ extern const FrameParserInterface frame_parser_interface;
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
-RingBufErrorCode ring_buf_create(RingBuf* const self, uint8_t* const buf, const uint16_t capacity, const uint8_t overwrite);
+RingBufErrorCode ring_buf_create(RingBuf* const self, uint8_t* const buf, const uint16_t capacity, const bool overwrite);
 FrameParserErrorCode frame_parser_create(FrameParser* const self, RingBuf* const ring_buf, const uint8_t* const header, const uint8_t header_length, uint8_t* const frame_buf, const uint16_t frame_buf_capacity, const bool crc_enabled);
 
 #endif

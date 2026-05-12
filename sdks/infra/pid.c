@@ -1,5 +1,7 @@
 #include "pid.h"
 
+#include <stdbool.h>
+
 // ! ========================= 变 量 声 明 ========================= ! //
 
 
@@ -125,16 +127,16 @@ float pid_calculate(Pid* self, float setpoint, float measurement, float dt_s) {
 
     /* 积分项 */
     if(mode & PID_MODE_I) {
-        int allow_integral = 1;
-        int allow_separation = 0;
+        bool allow_integral = true;
+        bool allow_separation = false;
 
         /* 积分抗饱和 : 条件积分法 (输出饱和且误差同向时禁止积分) */
         if(feat & PID_FEAT_ANTI_WINDUP) {
             if(self->prev_output_ >= self->cfg.max_out && err > 0.0f) {
-                allow_integral = 0;
+                allow_integral = false;
             }
             if(self->prev_output_ <= -self->cfg.max_out && err < 0.0f) {
-                allow_integral = 0;
+                allow_integral = false;
             }
         }
 
@@ -145,7 +147,7 @@ float pid_calculate(Pid* self, float setpoint, float measurement, float dt_s) {
         /* 积分分离 (误差过大时不叠加积分输出) */
         if(feat & PID_FEAT_INTEGRAL_SEP) {
             if(pid_abs(err) > self->cfg.integral_separation) {
-                allow_separation = 1;
+                allow_separation = true;
             }
         }
 

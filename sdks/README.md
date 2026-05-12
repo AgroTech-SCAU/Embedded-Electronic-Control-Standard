@@ -43,6 +43,7 @@ sdks/
 
 - public header 不包含芯片平台头文件
 - public API 明确错误码、配置结构、生命周期和单位
+- 二值语义必须使用 `bool` / `true` / `false`，并在使用处包含 `<stdbool.h>`；不要用 `uint8_t`、`int` 或 `0/1` 表示布尔状态
 - 涉及真实设备时必须提供 stop、timeout、fault 或等价安全路径
 - 需要底层能力时优先通过 `init(config with PortOps)` 接入
 - 可独立测试的模块应提供最小 example 或测试入口

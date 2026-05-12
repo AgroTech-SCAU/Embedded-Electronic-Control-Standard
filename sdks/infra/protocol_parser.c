@@ -13,8 +13,8 @@ static RingBufErrorCode _rb_write(RingBuf* const self, const uint8_t data);
 static RingBufErrorCode _rb_read(RingBuf* const self, uint8_t* const data);
 static RingBufErrorCode _rb_clear(RingBuf* const self);
 
-static int8_t _rb_is_full(RingBuf* const self);
-static int8_t _rb_is_empty(RingBuf* const self);
+static bool _rb_is_full(RingBuf* const self);
+static bool _rb_is_empty(RingBuf* const self);
 
 static int _rb_get_size(RingBuf* const self);
 static int _rb_get_capacity(RingBuf* const self);
@@ -54,10 +54,10 @@ const FrameParserInterface frame_parser_interface = {
  * @param self 指向 RingBuf 结构体的指针
  * @param buf 指向用于存储数据的缓冲区的指针
  * @param capacity 缓冲区的容量
- * @param overwrite 是否允许覆盖旧数据，1 表示允许，0 表示不允许
+ * @param overwrite 是否允许覆盖旧数据，true 表示允许，false 表示不允许
  * @return RingBufErrorCode 枚举类型，表示操作结果
  */
-RingBufErrorCode ring_buf_create(RingBuf* const self, uint8_t* const buf, const uint16_t capacity, const uint8_t overwrite) {
+RingBufErrorCode ring_buf_create(RingBuf* const self, uint8_t* const buf, const uint16_t capacity, const bool overwrite) {
     if(self == NULL) return RING_BUF_ERR_NULL_PTR;
     if(buf == NULL) return RING_BUF_ERR_NULL_PTR;
     if(capacity == 0) return RING_BUF_ERR_FULL;
@@ -75,7 +75,7 @@ RingBufErrorCode ring_buf_create(RingBuf* const self, uint8_t* const buf, const 
     return RING_BUF_SUCCESS;
 }
 
-RingBufErrorCode RingBufCreate(RingBuf* const self, uint8_t* const buf, const uint16_t capacity, const uint8_t overwrite) {
+RingBufErrorCode RingBufCreate(RingBuf* const self, uint8_t* const buf, const uint16_t capacity, const bool overwrite) {
     return ring_buf_create(self, buf, capacity, overwrite);
 }
 
@@ -206,25 +206,25 @@ RingBufErrorCode _rb_clear(RingBuf* const self) {
 /**
  * @brief 检查环形缓冲区是否已满
  * @param self 指向 RingBuf 结构体的指针
- * @return 1 表示已满，0 表示未满，-1 表示错误
+ * @return true 表示已满，false 表示未满或参数无效
  */
-int8_t _rb_is_full(RingBuf* const self) {
-    if(self == NULL) return -1;
-    if(self->_initialized_ == false) return -1;
+bool _rb_is_full(RingBuf* const self) {
+    if(self == NULL) return false;
+    if(self->_initialized_ == false) return false;
 
-    return (self->_size_ >= self->_capacity_) ? 1 : 0;
+    return self->_size_ >= self->_capacity_;
 }
 
 /**
  * @brief 检查环形缓冲区是否为空
  * @param self 指向 RingBuf 结构体的指针
- * @return 1 表示为空，0 表示非空，-1 表示错误
+ * @return true 表示为空，false 表示非空或参数无效
  */
-int8_t _rb_is_empty(RingBuf* const self) {
-    if(self == NULL) return -1;
-    if(self->_initialized_ == false) return -1;
+bool _rb_is_empty(RingBuf* const self) {
+    if(self == NULL) return false;
+    if(self->_initialized_ == false) return false;
 
-    return (self->_size_ == 0) ? 1 : 0;
+    return self->_size_ == 0;
 }
 
 /**

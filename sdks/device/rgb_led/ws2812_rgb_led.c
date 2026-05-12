@@ -1,5 +1,6 @@
 #include "ws2812_rgb_led.h"
 
+#include <stdbool.h>
 #include <string.h>
 
 // ! ========================= 变 量 声 明 ========================= ! //
@@ -14,7 +15,7 @@ static uint32_t s_color_buffer_size;
 static uint8_t* s_tx_buffer;
 static uint32_t s_tx_buffer_size;
 static uint16_t s_reset_bytes;
-static uint8_t s_initialized;
+static bool s_initialized;
 
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
 
@@ -63,7 +64,7 @@ static RgbLedStatus ws2812_rgb_led_init(const RgbLedConfig* config) {
     s_tx_buffer = config->tx_buffer;
     s_tx_buffer_size = config->tx_buffer_size;
     s_reset_bytes = config->reset_bytes;
-    s_initialized = 1u;
+    s_initialized = true;
 
     memset(s_color_buffer, 0, s_color_buffer_size);
     memset(s_tx_buffer, 0, s_tx_buffer_size);
@@ -83,7 +84,7 @@ static const char* ws2812_rgb_led_status_str(RgbLedStatus status) {
 static RgbLedStatus ws2812_rgb_led_set_rgb(uint16_t index, uint8_t r, uint8_t g, uint8_t b) {
     uint32_t offset;
 
-    if(s_initialized == 0u) {
+    if(s_initialized == false) {
         return RGB_LED_STATUS_NOT_INITIALIZE;
     }
 
@@ -104,7 +105,7 @@ static RgbLedStatus ws2812_rgb_led_fill(uint8_t r, uint8_t g, uint8_t b) {
     uint16_t i;
     RgbLedStatus status;
 
-    if(s_initialized == 0u) {
+    if(s_initialized == false) {
         return RGB_LED_STATUS_NOT_INITIALIZE;
     }
 
@@ -128,7 +129,7 @@ static RgbLedStatus ws2812_rgb_led_show(void) {
     uint32_t tx_base;
     uint32_t send_len;
 
-    if(s_initialized == 0u) {
+    if(s_initialized == false) {
         return RGB_LED_STATUS_NOT_INITIALIZE;
     }
 
@@ -154,7 +155,7 @@ static RgbLedStatus ws2812_rgb_led_show(void) {
         memset(&s_tx_buffer[(uint32_t)s_pixel_count * WS2812_RGB_LED_BITS_PER_PIXEL], 0, s_reset_bytes);
     }
 
-    if(s_ops->write(s_tx_buffer, send_len) != 0) {
+    if(s_ops->write(s_tx_buffer, send_len) == false) {
         return RGB_LED_STATUS_PORT_ERROR;
     }
 
@@ -164,7 +165,7 @@ static RgbLedStatus ws2812_rgb_led_show(void) {
 static RgbLedStatus ws2812_rgb_led_get_color(uint16_t index, RgbLedColor* out) {
     uint32_t offset;
 
-    if(s_initialized == 0u) {
+    if(s_initialized == false) {
         return RGB_LED_STATUS_NOT_INITIALIZE;
     }
 

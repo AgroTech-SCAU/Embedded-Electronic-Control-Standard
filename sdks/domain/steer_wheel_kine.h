@@ -1,6 +1,7 @@
 #ifndef _steer_wheel_kine_h_
 #define _steer_wheel_kine_h_
 
+#include <stdbool.h>
 #include <stdint.h>
 
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
@@ -89,13 +90,13 @@ typedef struct {
  * @param model 底盘模型参数
  * @param control 控制输入和 IK 输出
  * @param state 反馈状态和 FK 输出
- * @param initialized 初始化标志，非 0 表示已初始化
+ * @param initialized 初始化标志，true 表示已初始化
  */
 typedef struct {
     SteerWheelModel model;
     SteerWheelControl control;
     SteerWheelState state;
-    uint8_t initialized;
+    bool initialized;
 } SteerWheel;
 
 /**

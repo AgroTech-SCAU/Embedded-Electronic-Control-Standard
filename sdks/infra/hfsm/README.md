@@ -94,8 +94,8 @@ hfsm/
 
 - `process()`：每次调用最多处理 1 个事件，然后执行 action
 - `process_all()`：批量处理队列；若批处理中发生状态切换，会在切换后执行 action
-- 当 `HFSM_RUN_PARENT_ACTIONS == 1` 时，action 执行顺序为 **当前状态 -> 父状态 -> ... -> 根状态**
-- 当 `HFSM_RUN_PARENT_ACTIONS == 0` 时，只执行当前状态 action
+- 当 `HFSM_RUN_PARENT_ACTIONS == true` 时，action 执行顺序为 **当前状态 -> 父状态 -> ... -> 根状态**
+- 当 `HFSM_RUN_PARENT_ACTIONS == false` 时，只执行当前状态 action
 
 ---
 

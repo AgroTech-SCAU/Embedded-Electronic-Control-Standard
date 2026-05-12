@@ -55,6 +55,7 @@ src/
 - domain 可依赖 infra，但不应依赖 device/platform
 - infra 应尽量无业务和芯片依赖，必要时通过 PortOps 或注册函数连接 platform
 - platform 是唯一允许直接包含 HAL/FSP/CMSIS/CubeMX 头文件的层
+- SDK 中所有二值语义统一使用 `bool` / `true` / `false`，并包含 `<stdbool.h>`；不要用 `uint8_t`、`int` 或 `0/1` 表示布尔状态
 
 **另外**：
 - service 负责 device/infra 与 platform 之间的对接，并完成系统能力的组合、缓存和安全策略

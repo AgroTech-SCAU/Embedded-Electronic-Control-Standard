@@ -1,5 +1,6 @@
 #include "dm_motor.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -7,7 +8,7 @@
 
 static const MotorPortOps* s_ops;
 static uint32_t s_feedback_timeout_ms;
-static uint8_t s_initialized;
+static bool s_initialized;
 
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
 
@@ -60,7 +61,7 @@ static MotorStatus dm_motor_init(const MotorConfig* config) {
 
     s_ops = config->ops;
     s_feedback_timeout_ms = config->feedback_timeout_ms;
-    s_initialized = 1u;
+    s_initialized = true;
 
     return MOTOR_STATUS_OK;
 }
@@ -211,7 +212,7 @@ static MotorStatus dm_motor_update(MotorFeedback* feedback) {
 }
 
 static MotorStatus dm_motor_send(uint32_t id, const uint8_t data[DM_MOTOR_CMD_LEN]) {
-    if(s_initialized == 0u) {
+    if(s_initialized == false) {
         return MOTOR_STATUS_NOT_INITIALIZE;
     }
 
@@ -219,7 +220,7 @@ static MotorStatus dm_motor_send(uint32_t id, const uint8_t data[DM_MOTOR_CMD_LE
         return MOTOR_STATUS_PORT_ERROR;
     }
 
-    if(s_ops->send(id, data, DM_MOTOR_CMD_LEN) != 0) {
+    if(s_ops->send(id, data, DM_MOTOR_CMD_LEN) == false) {
         return MOTOR_STATUS_PORT_ERROR;
     }
 
@@ -233,7 +234,7 @@ static MotorStatus dm_motor_send(uint32_t id, const uint8_t data[DM_MOTOR_CMD_LE
 static MotorStatus dm_motor_read(uint32_t* id, uint8_t data[DM_MOTOR_CMD_LEN]) {
     uint8_t len = DM_MOTOR_CMD_LEN;
 
-    if(s_initialized == 0u) {
+    if(s_initialized == false) {
         return MOTOR_STATUS_NOT_INITIALIZE;
     }
 
@@ -241,7 +242,7 @@ static MotorStatus dm_motor_read(uint32_t* id, uint8_t data[DM_MOTOR_CMD_LEN]) {
         return MOTOR_STATUS_PORT_ERROR;
     }
 
-    if(s_ops->read(id, data, &len) != 0) {
+    if(s_ops->read(id, data, &len) == false) {
         return MOTOR_STATUS_TIMEOUT;
     }
 

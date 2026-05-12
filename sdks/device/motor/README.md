@@ -75,8 +75,8 @@ typedef enum {
 
 ```c
 typedef struct {
-    int (*send)(uint32_t id, const uint8_t* data, uint8_t len);
-    int (*read)(uint32_t* id, uint8_t* data, uint8_t* len);
+    bool (*send)(uint32_t id, const uint8_t* data, uint8_t len);
+    bool (*read)(uint32_t* id, uint8_t* data, uint8_t* len);
     uint32_t (*now_ms)(void);
     void (*delay_ms)(uint32_t ms);
 } MotorPortOps;
@@ -136,6 +136,7 @@ void chassis_update(void)
 
 - 上层只依赖 `motor.h`
 - 具体电机实例只负责协议实现
+- 具体实例内部的初始化、在线等二值状态使用 `bool` / `true` / `false`，不再用 `uint8_t` 或 `0/1` 表示
 - `dm_motor.*` 不直接 include platform 头文件
 - platform 对接统一放在 service init 或 adapter 中
 - 新增其他电机时，只需要新增实例文件并提供 `MotorInterface`

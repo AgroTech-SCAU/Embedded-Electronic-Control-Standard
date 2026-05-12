@@ -102,7 +102,7 @@ static LogStatus log_write_text(const char* text) {
         return LOG_STATUS_NOT_INITIALIZED;
     }
 
-    if(s_ops->write(text, (uint32_t)strlen(text)) != 0) {
+    if(s_ops->write(text, (uint32_t)strlen(text)) == false) {
         return LOG_STATUS_PORT_ERROR;
     }
 
@@ -147,7 +147,7 @@ static LogStatus log_vwrite(LogLevel level, const char* color, const char* tag, 
         len = (int)sizeof(buffer) - 1;
     }
 
-    if(s_ops->write(buffer, (uint32_t)len) != 0) {
+    if(s_ops->write(buffer, (uint32_t)len) == false) {
         return LOG_STATUS_PORT_ERROR;
     }
 

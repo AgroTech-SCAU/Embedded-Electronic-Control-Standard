@@ -61,7 +61,7 @@ SteelWheelErrorCode steer_wheel_init(SteerWheel* steer_wheel, SteerWheelModel mo
     steer_wheel->state.cur_vx = 0.0f;
     steer_wheel->state.cur_vy = 0.0f;
     steer_wheel->state.cur_wz = 0.0f;
-    steer_wheel->initialized = 1u;
+    steer_wheel->initialized = true;
 
     return sw.OK;
 }
@@ -73,7 +73,7 @@ SteelWheelErrorCode steer_wheel_init(SteerWheel* steer_wheel, SteerWheelModel mo
  */
 SteelWheelErrorCode steer_wheel_fk(SteerWheel* steer_wheel) {
     if(steer_wheel == NULL) return sw.INVALID_PARAM;
-    if(steer_wheel->initialized == 0u) return sw.NOT_INITIALIZE;
+    if(steer_wheel->initialized == false) return sw.NOT_INITIALIZE;
     if(steer_wheel->model.length <= 0.0f || steer_wheel->model.width <= 0.0f || steer_wheel->model.wheel_radius <= 0.0f) return sw.INVALID_MODEL;
 
     float x[4];
@@ -112,7 +112,7 @@ SteelWheelErrorCode steer_wheel_fk(SteerWheel* steer_wheel) {
  */
 SteelWheelErrorCode steer_wheel_ik(SteerWheel* steer_wheel) {
     if(steer_wheel == NULL) return sw.INVALID_PARAM;
-    if(steer_wheel->initialized == 0u) return sw.NOT_INITIALIZE;
+    if(steer_wheel->initialized == false) return sw.NOT_INITIALIZE;
     if(steer_wheel->model.length <= 0.0f || steer_wheel->model.width <= 0.0f || steer_wheel->model.wheel_radius <= 0.0f) return sw.INVALID_MODEL;
 
     float x[4];
