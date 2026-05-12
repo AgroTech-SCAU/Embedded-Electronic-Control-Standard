@@ -45,7 +45,7 @@ static RgbLedStatus ws2812_rgb_led_init(const RgbLedConfig* config) {
     uint32_t need_tx_size;
 
     if(config == 0 || config->ops == 0 || config->ops->write == 0 ||
-       config->pixel_count == 0u || config->color_buffer == 0 || config->tx_buffer == 0) {
+        config->pixel_count == 0u || config->color_buffer == 0 || config->tx_buffer == 0) {
         return RGB_LED_STATUS_INVALID_PARAM;
     }
 
@@ -73,9 +73,9 @@ static RgbLedStatus ws2812_rgb_led_init(const RgbLedConfig* config) {
 
 static const char* ws2812_rgb_led_status_str(RgbLedStatus status) {
     switch(status) {
-        #define X(name, value) case RGB_LED_STATUS_##name: return #name;
+#define X(name, value) case RGB_LED_STATUS_##name: return #name;
         RGB_LED_STATUS_TABLE
-        #undef X
+#undef X
         default: return "UNKNOWN";
     }
 }
@@ -180,6 +180,22 @@ static RgbLedStatus ws2812_rgb_led_get_color(uint16_t index, RgbLedColor* out) {
     out->g = s_color_buffer[offset + 0u];
     out->r = s_color_buffer[offset + 1u];
     out->b = s_color_buffer[offset + 2u];
+
+    return RGB_LED_STATUS_OK;
+}
+
+RgbLedStatus ws2812_rgb_led_make_config(RgbLedConfig* out_config, const RgbLedPortOps* ops,
+    uint8_t* color_buffer, uint32_t color_buffer_size,
+    uint8_t* tx_buffer, uint32_t tx_buffer_size) {
+    if(out_config == 0 || ops == 0 || ops->write == 0 || color_buffer == 0 || tx_buffer == 0) return RGB_LED_STATUS_INVALID_PARAM;
+
+    out_config->ops = ops;
+    out_config->pixel_count = 8;
+    out_config->color_buffer = color_buffer;
+    out_config->color_buffer_size = color_buffer_size;
+    out_config->tx_buffer = tx_buffer;
+    out_config->tx_buffer_size = tx_buffer_size;
+    out_config->reset_bytes = 80;
 
     return RGB_LED_STATUS_OK;
 }

@@ -33,7 +33,7 @@ typedef enum {
  * @brief 日志输出级别
  *
  * 数值越大，输出内容越多；例如 LOGGER_LEVEL_WARN 会输出 warn/error，
- * 不会输出 info。
+ * 不会输出 info
  */
 typedef enum {
     /** 关闭所有日志输出 */
@@ -49,7 +49,7 @@ typedef enum {
 /**
  * @brief 日志底层输出端口函数表
  *
- * 由 service init 绑定到 platform 的 UART、USB CDC、RTT、文件输出或 mock buffer。
+ * 由 service init 绑定到 platform 的 UART、USB CDC、RTT、文件输出或 mock buffer
  */
 typedef struct {
     /**

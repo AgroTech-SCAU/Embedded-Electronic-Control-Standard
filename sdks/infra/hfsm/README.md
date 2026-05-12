@@ -1,4 +1,4 @@
-一个面向嵌入式与业务状态编排场景的轻量级层级有限状态机（Hierarchical Finite State Machine）实现。
+一个面向嵌入式与业务状态编排场景的轻量级层级有限状态机（Hierarchical Finite State Machine）实现
 
 该仓库采用 **core 内核 + API 包装层 + 配置头** 的分层方式：
 
@@ -65,15 +65,15 @@ hfsm/
 
 ### 1. 初始化
 
-先初始化对象，再设置状态与初始状态。
+先初始化对象，再设置状态与初始状态
 
 ### 2. 启动
 
-调用 `start()` 后，状态机进入初始状态并沿父链执行 `entry`。
+调用 `start()` 后，状态机进入初始状态并沿父链执行 `entry`
 
 ### 3. 事件投递
 
-`post()` 仅入队，不立即处理。
+`post()` 仅入队，不立即处理
 
 ### 4. 事件分发
 
@@ -174,7 +174,7 @@ hfsm_core.res.handled();
 hfsm_core.res.transition(next_state);
 ```
 
-> 说明：内核层不负责“创建状态”。`HfsmState` 由用户自行定义（通常静态定义）。
+> 说明：内核层不负责“创建状态”；`HfsmState` 由用户自行定义（通常静态定义）
 
 ### 封装层 `hfsm.h`
 
@@ -231,7 +231,7 @@ const void* hfsm.const_context(const Hfsm* fsm);
 
 ### 直接使用内核
 
-这类用法只用 `hfsm_core.h`，不使用 `hfsm.h` 的业务友好 API。
+这类用法只用 `hfsm_core.h`，不使用 `hfsm.h` 的业务友好 API
 
 ```c
 #include <stdint.h>
@@ -245,7 +245,7 @@ typedef struct {
     int counter;
 } AppContext;
 
-// 可选：自定义事件数据类型。若不需要可直接用默认 HfsmEventData。
+// 可选：自定义事件数据类型；若不需要可直接用默认 HfsmEventData
 typedef union {
     void* ptr;
     int32_t i32;
@@ -313,7 +313,7 @@ void app_start(void) {
 ### 使用业务友好 API
 
 ```c
-// 可选：自定义事件数据类型。若不需要可直接用默认 HfsmEventData。
+// 可选：自定义事件数据类型；若不需要可直接用默认 HfsmEventData
 typedef union {
     void* ptr;
     int32_t i32;
@@ -371,7 +371,7 @@ Root
     └── Recover
 ```
 
-若当前状态是 `Execute`，事件会先到 `Execute.handle()`，忽略后再上送给 `Work`，再到 `Root`。
+若当前状态是 `Execute`，事件会先到 `Execute.handle()`，忽略后再上送给 `Work`，再到 `Root`
 
 ---
 
