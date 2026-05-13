@@ -1,5 +1,5 @@
-#ifndef RGB_LED_H
-#define RGB_LED_H
+#ifndef _rgb_led_h_
+#define _rgb_led_h_
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -35,7 +35,8 @@
     X(NO_INSTANCE, 4) \
     X(NOT_INITIALIZE, 5) \
     X(BUFFER_TOO_SMALL, 6) \
-    X(INDEX_OUT_OF_RANGE, 7)
+    X(INDEX_OUT_OF_RANGE, 7) \
+    X(BUSY, 8)
 
 #define X(name, value) RGB_LED_STATUS_##name = value,
 /**
@@ -89,6 +90,8 @@ typedef struct {
     uint32_t tx_buffer_size;
     /** reset 低电平填充字节数，具体含义由实例决定 */
     uint16_t reset_bytes;
+    /** true 表示 write 返回后底层仍可能继续读取 tx_buffer */
+    bool async_write;
 } RgbLedConfig;
 
 /**
@@ -100,7 +103,7 @@ typedef struct {
      * @param config 初始化配置
      * @return RgbLedStatus 状态码
      */
-    RgbLedStatus (*init)(const RgbLedConfig* config);
+    RgbLedStatus(*init)(const RgbLedConfig* config);
     /**
      * @brief 状态码转字符串
      * @param status RGB LED 状态码
@@ -115,7 +118,7 @@ typedef struct {
      * @param b 蓝色通道，范围 0~255
      * @return RgbLedStatus 状态码
      */
-    RgbLedStatus (*set_rgb)(uint16_t index, uint8_t r, uint8_t g, uint8_t b);
+    RgbLedStatus(*set_rgb)(uint16_t index, uint8_t r, uint8_t g, uint8_t b);
     /**
      * @brief 设置全部灯珠颜色，只更新缓存，不立即发送
      * @param r 红色通道，范围 0~255
@@ -123,24 +126,29 @@ typedef struct {
      * @param b 蓝色通道，范围 0~255
      * @return RgbLedStatus 状态码
      */
-    RgbLedStatus (*fill)(uint8_t r, uint8_t g, uint8_t b);
+    RgbLedStatus(*fill)(uint8_t r, uint8_t g, uint8_t b);
     /**
      * @brief 清空全部灯珠颜色，只更新缓存，不立即发送
      * @return RgbLedStatus 状态码
      */
-    RgbLedStatus (*clear)(void);
+    RgbLedStatus(*clear)(void);
     /**
      * @brief 将颜色缓存编码并发送到真实灯带
      * @return RgbLedStatus 状态码
      */
-    RgbLedStatus (*show)(void);
+    RgbLedStatus(*show)(void);
+    /**
+     * @brief 通知具体实例上一段异步写入已经完成
+     * @return RgbLedStatus 状态码
+     */
+    RgbLedStatus(*write_complete)(void);
     /**
      * @brief 获取单个灯珠当前缓存颜色
      * @param index 灯珠索引，从 0 开始
      * @param out 输出颜色指针
      * @return RgbLedStatus 状态码
      */
-    RgbLedStatus (*get_color)(uint16_t index, RgbLedColor* out);
+    RgbLedStatus(*get_color)(uint16_t index, RgbLedColor* out);
 } RgbLedInterface;
 
 /**
@@ -201,6 +209,12 @@ RgbLedStatus rgb_led_clear(void);
  * @return RgbLedStatus 状态码
  */
 RgbLedStatus rgb_led_show(void);
+
+/**
+ * @brief 通知当前实例上一段异步写入已经完成
+ * @return RgbLedStatus 状态码
+ */
+RgbLedStatus rgb_led_write_complete(void);
 
 /**
  * @brief 获取单个灯珠当前缓存颜色

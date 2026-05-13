@@ -1,5 +1,5 @@
-#ifndef WS2812_RGB_LED_H
-#define WS2812_RGB_LED_H
+#ifndef _ws2812_rgb_led_h_
+#define _ws2812_rgb_led_h_
 
 #include "rgb_led.h"
 

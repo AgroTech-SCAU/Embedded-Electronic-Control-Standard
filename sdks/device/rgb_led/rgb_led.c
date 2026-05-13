@@ -68,6 +68,14 @@ RgbLedStatus rgb_led_show(void) {
     return rgb_led_instance->show();
 }
 
+RgbLedStatus rgb_led_write_complete(void) {
+    if(rgb_led_instance == 0 || rgb_led_instance->write_complete == 0) {
+        return RGB_LED_STATUS_NO_INSTANCE;
+    }
+
+    return rgb_led_instance->write_complete();
+}
+
 RgbLedStatus rgb_led_get_color(uint16_t index, RgbLedColor* out) {
     if(rgb_led_instance == 0 || rgb_led_instance->get_color == 0) {
         return RGB_LED_STATUS_NO_INSTANCE;

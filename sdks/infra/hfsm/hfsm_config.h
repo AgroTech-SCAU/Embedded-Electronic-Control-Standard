@@ -1,5 +1,5 @@
-#ifndef _hfsm_core_config_h_
-#define _hfsm_core_config_h_
+#ifndef _hfsm_config_h_
+#define _hfsm_config_h_
 
 #include <stdbool.h>
 #include <stdint.h>

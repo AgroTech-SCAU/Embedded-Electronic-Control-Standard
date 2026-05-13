@@ -15,6 +15,8 @@ static uint32_t s_color_buffer_size;
 static uint8_t* s_tx_buffer;
 static uint32_t s_tx_buffer_size;
 static uint16_t s_reset_bytes;
+static bool s_async_write;
+static volatile bool s_write_busy;
 static bool s_initialized;
 
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
@@ -25,6 +27,7 @@ static RgbLedStatus ws2812_rgb_led_set_rgb(uint16_t index, uint8_t r, uint8_t g,
 static RgbLedStatus ws2812_rgb_led_fill(uint8_t r, uint8_t g, uint8_t b);
 static RgbLedStatus ws2812_rgb_led_clear(void);
 static RgbLedStatus ws2812_rgb_led_show(void);
+static RgbLedStatus ws2812_rgb_led_write_complete(void);
 static RgbLedStatus ws2812_rgb_led_get_color(uint16_t index, RgbLedColor* out);
 static void ws2812_rgb_led_encode_byte(uint8_t value, uint8_t* out);
 static uint32_t ws2812_rgb_led_color_offset(uint16_t index);
@@ -38,6 +41,7 @@ const RgbLedInterface ws2812_rgb_led_instance = {
     .fill = ws2812_rgb_led_fill,
     .clear = ws2812_rgb_led_clear,
     .show = ws2812_rgb_led_show,
+    .write_complete = ws2812_rgb_led_write_complete,
     .get_color = ws2812_rgb_led_get_color,
 };
 
@@ -64,6 +68,8 @@ static RgbLedStatus ws2812_rgb_led_init(const RgbLedConfig* config) {
     s_tx_buffer = config->tx_buffer;
     s_tx_buffer_size = config->tx_buffer_size;
     s_reset_bytes = config->reset_bytes;
+    s_async_write = config->async_write;
+    s_write_busy = false;
     s_initialized = true;
 
     memset(s_color_buffer, 0, s_color_buffer_size);
@@ -137,6 +143,10 @@ static RgbLedStatus ws2812_rgb_led_show(void) {
         return RGB_LED_STATUS_PORT_ERROR;
     }
 
+    if(s_async_write && s_write_busy) {
+        return RGB_LED_STATUS_BUSY;
+    }
+
     send_len = ((uint32_t)s_pixel_count * WS2812_RGB_LED_BITS_PER_PIXEL) + s_reset_bytes;
 
     if(send_len > s_tx_buffer_size) {
@@ -155,10 +165,20 @@ static RgbLedStatus ws2812_rgb_led_show(void) {
         memset(&s_tx_buffer[(uint32_t)s_pixel_count * WS2812_RGB_LED_BITS_PER_PIXEL], 0, s_reset_bytes);
     }
 
+    if(s_async_write) {
+        s_write_busy = true;
+    }
+
     if(s_ops->write(s_tx_buffer, send_len) == false) {
+        s_write_busy = false;
         return RGB_LED_STATUS_PORT_ERROR;
     }
 
+    return RGB_LED_STATUS_OK;
+}
+
+static RgbLedStatus ws2812_rgb_led_write_complete(void) {
+    s_write_busy = false;
     return RGB_LED_STATUS_OK;
 }
 
@@ -197,6 +217,7 @@ RgbLedStatus ws2812_rgb_led_make_config(RgbLedConfig* out_config, const RgbLedPo
     out_config->tx_buffer = tx_buffer;
     out_config->tx_buffer_size = tx_buffer_size;
     out_config->reset_bytes = 80;
+    out_config->async_write = false;
 
     return RGB_LED_STATUS_OK;
 }

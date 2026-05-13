@@ -1,12 +1,14 @@
+#ifndef _log_h_
+#define _log_h_
+
 /**
  * @file log.h
  * @brief 轻量级 printf 风格日志模块
  *
- * 本模块只依赖一个底层写接口 LogPortOps.write，可对接阻塞 UART、UART DMA、
- * RTT、USB CDC、文件或 mock buffer；日志层负责格式化、级别过滤、可选 ANSI
- * 颜色，以及异步输出时的缓冲区生命周期管理
+ * 本模块只依赖一个底层写接口 LogPortOps.write，可对接阻塞 UART、UART DMA、RTT、USB CDC、文件或 mock buffer
+ * 日志层负责格式化、级别过滤、可选 ANSI 颜色，以及异步输出时的缓冲区生命周期管理
  *
- * 最小同步用法：
+ * 最小同步用法
  *
  * @code
  * static bool board_log_write(const char* data, uint32_t len) {
@@ -30,7 +32,7 @@
  * }
  * @endcode
  *
- * UART DMA 异步用法：
+ * UART DMA 异步用法
  *
  * @code
  * static bool board_log_write(const char* data, uint32_t len) {
@@ -48,31 +50,14 @@
  *         log_write_complete();
  *     }
  * }
- *
- * void app_init(void) {
- *     LogConfig config = {
- *         .ops = &log_ops,
- *         .level = LOG_LEVEL_INFO,
- *         .enable_color = true,
- *         .async_write = true,
- *     };
- *
- *     log_init(&config);
- *     log_info("system started");
- * }
  * @endcode
  *
- * 注意：
- * - async_write=false 时，write() 必须在返回前完成对 data 的读取
- * - async_write=true 时，write() 可在返回后继续读取 data，但发送完成或错误后
- *   必须调用 log_write_complete()，否则队列不会继续发送
- * - 异步模式内部带有小队列，连续多条日志会排队发送；队列满时返回 LOG_STATUS_BUSY
- * - LOG_BUFFER_SIZE 控制单条日志最大长度，LOG_QUEUE_DEPTH 控制异步队列深度，
- *   二者可在编译选项中覆盖
+ * 注意
+ * - async_write=false 时 write() 必须在返回前完成对 data 的读取
+ * - async_write=true 时 write() 可在返回后继续读取 data，发送完成或错误后必须调用 log_write_complete()
+ * - 异步模式内部带有小队列，连续多条日志会排队发送，队列满时返回 LOG_STATUS_BUSY
+ * - LOG_BUFFER_SIZE 控制单条日志最大长度，LOG_QUEUE_DEPTH 控制异步队列深度，二者可在编译选项中覆盖
  */
-
-#ifndef LOG_H
-#define LOG_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -110,15 +95,12 @@ typedef enum {
     LOG_STATUS_PORT_ERROR,
     /** 尚未调用 log_init() 或 PortOps 未绑定 */
     LOG_STATUS_NOT_INITIALIZED,
-    /** 异步输出仍在发送上一条日志 */
+    /** 异步输出队列已满 */
     LOG_STATUS_BUSY,
 } LogStatus;
 
 /**
  * @brief 日志输出级别
- *
- * 数值越大，输出内容越多；例如 LOGGER_LEVEL_WARN 会输出 warn/error，
- * 不会输出 info
  */
 typedef enum {
     /** 关闭所有日志输出 */
@@ -133,8 +115,6 @@ typedef enum {
 
 /**
  * @brief 日志底层输出端口函数表
- *
- * 由 service init 绑定到 platform 的 UART、USB CDC、RTT、文件输出或 mock buffer
  */
 typedef struct {
     /**

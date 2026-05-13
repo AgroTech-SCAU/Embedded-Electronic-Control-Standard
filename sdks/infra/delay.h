@@ -1,9 +1,10 @@
-/**
- * @file    delay.h
- * @brief   延时服务 (阻塞 & 非阻塞)
- */
 #ifndef _delay_h_
 #define _delay_h_
+
+/**
+ * @file delay.h
+ * @brief 延时服务
+ */
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -11,7 +12,7 @@
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
 /**
- * @brief 毫秒微秒时间类型定义
+ * @brief 毫秒和微秒时间类型定义
  */
 typedef uint32_t ms_t;
 typedef uint32_t us_t;
