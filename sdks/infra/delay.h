@@ -22,10 +22,10 @@ typedef uint32_t us_t;
 void delay_ms_init(ms_t(*get_ms)(void));
 void delay_ms(ms_t ms);
 void delay_s(ms_t s);
-bool s_nb_delay_ms(ms_t* start, ms_t interval_ms);
+bool delay_nb_ms(ms_t* start, ms_t interval_ms);
 
 void delay_us_init(us_t(*get_us)(void));
 void delay_us(us_t us);
-bool s_nb_delay_us(us_t* start, us_t interval_us);
+bool delay_nb_us(us_t* start, us_t interval_us);
 
 #endif

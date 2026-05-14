@@ -1,124 +1,176 @@
-# servo SDK 接口文档
+# servo SDK
 
-> `src/device/servo/` 提供舵机设备层统一入口，以及 FEETECH STS3215 串行舵机的 SCS 协议实例实现
+`src/device/servo/` 提供舵机通用入口和 FEETECH SCS 协议驱动
 
----
-
-## 1. 模块定位
-
-`servo.*` 是舵机统一接口入口，供 service/app 上层调用
-
-`sts3215_servo.*` 是 FEETECH STS3215 实例，负责 SCS 协议组帧、校验、应答解析、寄存器读写与常用控制命令
-
-推荐使用方式：
+## 文件结构
 
 ```text
-service init
--> 组装 ServoPortOps
--> servo_set_instance(&sts3215_servo_instance)
--> servo_init(&config)
--> app/service 统一调用 servo.xxx 或 servo_xxx
+servo/
+├── README.md
+├── servo.h
+├── servo.c
+├── ft_scs_servo.h
+└── ft_scs_servo.c
 ```
 
----
+## 设计原则
 
-## 2. 文件结构
+`servo.*` 只放所有舵机都应具备的通用能力
 
-```text
-src/device/servo/
-|-- servo.h                 # 通用舵机接口、状态码、反馈结构、PortOps、入口单例
-|-- servo.c                 # 入口单例转发实现
-|-- sts3215_servo.h         # STS3215 寄存器/常量与实例声明
-|-- sts3215_servo.c         # STS3215 SCS 协议实现
-|-- Servo.md                # 原始项目说明资料
-|-- 舵机SCS通信协议.md       # FEETECH SCS 协议参考资料
-`-- README.md
+- `init`
+- `status_str`
+- `set_speed`
+- `set_pos_spd`
+- `set_pos_spd_tor`
+- `get_position`
+- `get_speed`
+- `get_torque`
+- `update_feedback`
+
+通用入口统一使用弧度制
+
+- `position` 单位为 `rad`
+- `speed` 单位为 `rad/s`
+- `torque` 统一使用 `N*m`
+
+如果某类舵机缺少某个通用能力, 驱动应直接返回 `SERVO_STATUS_UNSUPPORTED`
+
+协议专属能力不放进 `servo.*`, 例如 SCS 的 `ping`, `action`, `write_u8`, `read_u16`, 原始指令包发送等, 都放在 `ft_scs_servo` 特色入口里
+
+## 通用入口
+
+```c
+#define servo (*servo_instance)
 ```
 
----
+可使用两种调用方式
 
-## 3. PortOps
+```c
+servo.set_speed(1u, 1.0f);
+servo_set_speed(1u, 1.0f);
+```
+
+### ServoFeedback
+
+```c
+typedef struct {
+    uint8_t id;
+    uint8_t error_code;
+    float position;
+    float speed;
+    float torque;
+} ServoFeedback;
+```
+
+`update_feedback()` 负责主动读取舵机反馈, 解析应答帧, 并更新驱动内部缓存
+
+`get_position()`, `get_speed()`, `get_torque()` 不会访问总线, 只返回最近一次成功解析后的缓存值
+
+## PortOps
 
 ```c
 typedef struct {
     bool (*write)(const uint8_t* data, uint16_t len);
     int (*read)(uint8_t* data, uint16_t len);
-    uint32_t (*now_ms)(void);
+    uint32_t(*now_ms)(void);
     void (*delay_ms)(uint32_t ms);
 } ServoPortOps;
 ```
 
-约定：
+约定
 
-- `write()` 成功返回 `true`，失败返回 `false`
-- `read()` 返回实际读到的字节数，可以小于请求长度；SDK 内部会按 `timeout_ms` 循环补齐
-- `now_ms()` 用于超时判断，必须提供
-- `delay_ms()` 可选，用于总线收发切换后的短延时
+- `write()` 成功返回 `true`, 失败返回 `false`
+- `read()` 返回实际读到的字节数, 可以小于请求长度
+- `now_ms()` 必须提供, 用于应答超时
+- `delay_ms()` 可选, 用于半双工或总线方向切换后的短等待
 
----
-
-## 4. 设计约束
-
-- device 层不直接 include `main.h`、`usart.h`、`stm32xxx_hal.h` 等平台头文件
-- 串口收发、时间、延时由 service/platform 通过 `ServoPortOps` 注入
-- 上层优先依赖 `servo.h`，不要直接调用协议内部函数
-- STS3215 的具体寄存器地址放在 `sts3215_servo.h`，业务层不需要记裸地址
-- 表达是否的接口和字段使用 `bool`，协议寄存器原始 0/1 值仍使用 `uint8_t`
-
----
-
-## 5. 初始化示例
+## 初始化
 
 ```c
 #include "servo.h"
-#include "sts3215_servo.h"
-#include "platform_uart.h"
-#include "platform_time.h"
+#include "ft_scs_servo.h"
+
+static bool servo_bus_write(const uint8_t* data, uint16_t len);
+static int servo_bus_read(uint8_t* data, uint16_t len);
+static uint32_t board_now_ms(void);
+static void board_delay_ms(uint32_t ms);
+static void servo_bus_flush_rx(void);
 
 static const ServoPortOps servo_ops = {
-    .write = platform_servo_uart_write,
-    .read = platform_servo_uart_read,
-    .now_ms = platform_time_now_ms,
-    .delay_ms = platform_time_delay_ms,
+    .write = servo_bus_write,
+    .read = servo_bus_read,
+    .now_ms = board_now_ms,
+    .delay_ms = board_delay_ms,
+    .flush_rx = servo_bus_flush_rx,
 };
 
-void arm_servo_init(void)
-{
+void device_servo_init(void) {
     ServoConfig config = {
         .ops = &servo_ops,
-        .timeout_ms = 20u,
+        .timeout_ms = 100u,
         .retry_count = 0u,
         .endian = SERVO_ENDIAN_LITTLE,
     };
 
-    servo_set_instance(&sts3215_servo_instance);
+    servo_set_instance(&ft_scs_servo_common_instance);
     servo_init(&config);
 }
 ```
 
-STS3215 属于磁编码串行舵机，双字节寄存器默认按小端处理
+磁编码 SCS 舵机通常使用小端寄存器, 电位器类型舵机可能使用大端寄存器, 以具体型号内存表为准
 
----
-
-## 6. 常用调用
+## 通用使用
 
 ```c
-uint8_t found_id;
 ServoFeedback feedback;
 
-servo.ping(1u, &found_id);
-servo.enable_torque(1u);
-servo.set_position(1u, 2048, 1000u, 50u);
-servo.read_feedback(1u, &feedback);
+servo.set_speed(1u, 1.5f);
+servo.set_pos_spd(1u, 3.14f, 1.0f);
+servo.set_pos_spd_tor(1u, 1.57f, 0.8f, 0.5f);
+
+if(servo.update_feedback(1u, &feedback) == SERVO_STATUS_OK) {
+    float pos = servo.get_position(1u);
+    float speed = servo.get_speed(1u);
+    float torque = servo.get_torque(1u);
+    (void)pos;
+    (void)speed;
+    (void)torque;
+}
 ```
 
-`ServoFeedback.moving` 是 `bool`，表示舵机当前是否处于运动状态
+## SCS 特色入口
 
----
+```c
+#include "ft_scs_servo.h"
 
-## 7. 安全提醒
+uint8_t found_id;
 
-- 上真机前先确认独立供电、共地、TX/RX 接线和波特率
-- 第一次调试先 `ping`，再低速、小范围运动
-- 机械臂或夹爪联调前，应在 service/app 层加入角度、速度、负载、温度和超时保护
-- 不建议在中断中调用阻塞式读写接口
+ft_scs_servo.ping(1u, &found_id);
+ft_scs_servo.enable_torque(1u);
+ft_scs_servo.write_u8(1u, FT_SCS_SERVO_LOCK, 0u);
+ft_scs_servo.action(FT_SCS_SERVO_BROADCAST_ID);
+```
+
+`ft_scs_servo_common_instance` 提供通用 `ServoInterface`, `ft_scs_servo_instance` 提供 SCS 协议特色接口
+
+## FEETECH SCS 映射
+
+当前驱动按 SCS 常用控制表地址实现
+
+- `set_speed()` 写 `MODE = 1`, 然后写 `ACC` 到 `GOAL_SPEED_H`
+- `set_pos_spd()` 写 `MODE = 0`, 然后写 `ACC` 到 `GOAL_SPEED_H`
+- `set_pos_spd_tor()` 先写 `TORQUE_LIMIT`, 再执行 `set_pos_spd()`
+- `update_feedback()` 读取 `PRESENT_POSITION_L` 到 `PRESENT_LOAD_H`
+
+位置原始值按一圈 `4096` count 与 `2*pi` rad 互转
+
+速度原始值按 `4096` count/s 与 `2*pi` rad/s 互转
+
+力矩或负载按 SCS 原始 `1000` 满量程映射到 STS3215 约 `2.94 N*m`
+
+## 安全建议
+
+- 首次上电先确认供电, 共地, TX/RX 或 RS485 方向控制, 波特率和 ID
+- 第一次运动先使用小速度和小范围
+- 机械结构联调前在 service/app 层加入角度, 速度, 负载和超时保护
+- 阻塞式读写接口不建议在中断中调用

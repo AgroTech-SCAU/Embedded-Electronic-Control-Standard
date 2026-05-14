@@ -63,7 +63,7 @@ void delay_s(ms_t s) {
  * @param interval_ms 延时间隔(ms)
  * @return bool -  true:时间到, false:未到
  */
-bool s_nb_delay_ms(ms_t* start, ms_t interval_ms) {
+bool delay_nb_ms(ms_t* start, ms_t interval_ms) {
     if(start == 0 || delay_ops.get_ms == 0) return false;
 
     ms_t now = delay_ops.get_ms();
@@ -104,7 +104,7 @@ void delay_us(us_t us) {
  * @param interval_us 延时间隔(us)
  * @return bool -  true:时间到, false:未到
  */
-bool s_nb_delay_us(us_t* start, us_t interval_us) {
+bool delay_nb_us(us_t* start, us_t interval_us) {
     if(start == 0 || delay_ops.get_us == 0) return false;
 
     us_t now = delay_ops.get_us();
