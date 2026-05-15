@@ -25,7 +25,11 @@ static uint32_t s_tx_count;
 
 static LogStatus log_vwrite(LogLevel level, const char* color, const char* tag, const char* format, va_list args);
 static uint32_t log_append_text(char* buffer, uint32_t size, uint32_t pos, const char* text);
+static uint32_t log_append_format(char* buffer, uint32_t size, uint32_t pos, const char* format, ...);
+static uint32_t log_append_vofa_value(char* buffer, uint32_t size, uint32_t pos, const LogVofaValue* value);
 static LogStatus log_start_async_write(void);
+static LogStatus log_prepare_tx_buffer(char** tx_buffer);
+static LogStatus log_commit_tx_buffer(uint32_t len);
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
@@ -98,6 +102,99 @@ LogStatus log_error(const char* format, ...) {
     return status;
 }
 
+LogVofaValue log_vofa_value_i64(long long value) {
+    LogVofaValue vofa_value;
+
+    vofa_value.type = LOG_VOFA_VALUE_I64;
+    vofa_value.data.i64 = value;
+
+    return vofa_value;
+}
+
+LogVofaValue log_vofa_value_u64(unsigned long long value) {
+    LogVofaValue vofa_value;
+
+    vofa_value.type = LOG_VOFA_VALUE_U64;
+    vofa_value.data.u64 = value;
+
+    return vofa_value;
+}
+
+LogVofaValue log_vofa_value_f64(double value) {
+    LogVofaValue vofa_value;
+
+    vofa_value.type = LOG_VOFA_VALUE_F64;
+    vofa_value.data.f64 = value;
+
+    return vofa_value;
+}
+
+LogVofaValue log_vofa_value_bool(bool value) {
+    LogVofaValue vofa_value;
+
+    vofa_value.type = LOG_VOFA_VALUE_BOOL;
+    vofa_value.data.bool_value = value;
+
+    return vofa_value;
+}
+
+LogVofaValue log_vofa_value_cstr(const char* value) {
+    LogVofaValue vofa_value;
+
+    vofa_value.type = LOG_VOFA_VALUE_CSTR;
+    vofa_value.data.cstr = value;
+
+    return vofa_value;
+}
+
+LogVofaValue log_vofa_value_ptr(const void* value) {
+    LogVofaValue vofa_value;
+
+    vofa_value.type = LOG_VOFA_VALUE_PTR;
+    vofa_value.data.ptr = value;
+
+    return vofa_value;
+}
+
+LogStatus log_vofa_write(const char* names, uint32_t count, const LogVofaValue* values) {
+    LogStatus status;
+    char* tx_buffer;
+    uint32_t pos = 0u;
+    uint32_t i;
+
+    if(names == 0 || values == 0 || count == 0u || count > LOG_VOFA_MAX_ARGS) {
+        return LOG_STATUS_INVALID_PARAM;
+    }
+
+    if(s_level == LOG_LEVEL_NONE) {
+        return LOG_STATUS_OK;
+    }
+
+    status = log_prepare_tx_buffer(&tx_buffer);
+    if(status != LOG_STATUS_OK) {
+        return status;
+    }
+
+    pos = log_append_text(tx_buffer, LOG_BUFFER_SIZE, pos, names);
+    pos = log_append_text(tx_buffer, LOG_BUFFER_SIZE, pos, ": ");
+
+    for(i = 0u; i < count; i++) {
+        if(i > 0u) {
+            pos = log_append_text(tx_buffer, LOG_BUFFER_SIZE, pos, ", ");
+        }
+
+        pos = log_append_vofa_value(tx_buffer, LOG_BUFFER_SIZE, pos, &values[i]);
+    }
+
+    pos = log_append_text(tx_buffer, LOG_BUFFER_SIZE, pos, "\r\n");
+
+    if(pos >= LOG_BUFFER_SIZE) {
+        pos = LOG_BUFFER_SIZE - 1u;
+    }
+
+    return log_commit_tx_buffer(pos);
+}
+
 const char* log_status_str(LogStatus status) {
     switch(status) {
         case LOG_STATUS_OK:
@@ -122,28 +219,19 @@ static LogStatus log_vwrite(LogLevel level, const char* color, const char* tag, 
     uint32_t pos = 0u;
     uint32_t remain;
     char* tx_buffer;
+    LogStatus status;
 
     if(format == 0) {
         return LOG_STATUS_INVALID_PARAM;
-    }
-
-    if(s_ops == 0 || s_ops->write == 0) {
-        return LOG_STATUS_NOT_INITIALIZED;
     }
 
     if(s_level < level) {
         return LOG_STATUS_OK;
     }
 
-    if(s_async_write) {
-        if(s_tx_count >= LOG_QUEUE_DEPTH) {
-            return LOG_STATUS_BUSY;
-        }
-
-        tx_buffer = s_tx_queue[s_tx_tail];
-    }
-    else {
-        tx_buffer = s_tx_queue[0];
+    status = log_prepare_tx_buffer(&tx_buffer);
+    if(status != LOG_STATUS_OK) {
+        return status;
     }
 
     if(s_enable_color) {
@@ -179,18 +267,7 @@ static LogStatus log_vwrite(LogLevel level, const char* color, const char* tag, 
         pos = LOG_BUFFER_SIZE - 1u;
     }
 
-    if(s_async_write) {
-        s_tx_len_queue[s_tx_tail] = pos;
-        s_tx_tail = (s_tx_tail + 1u) % LOG_QUEUE_DEPTH;
-        s_tx_count++;
-        return log_start_async_write();
-    }
-
-    if(s_ops->write(tx_buffer, pos) == false) {
-        return LOG_STATUS_PORT_ERROR;
-    }
-
-    return LOG_STATUS_OK;
+    return log_commit_tx_buffer(pos);
 }
 
 static uint32_t log_append_text(char* buffer, uint32_t size, uint32_t pos, const char* text) {
@@ -211,6 +288,103 @@ static uint32_t log_append_text(char* buffer, uint32_t size, uint32_t pos, const
     }
 
     return pos;
+}
+
+static uint32_t log_append_format(char* buffer, uint32_t size, uint32_t pos, const char* format, ...) {
+    va_list args;
+    int len;
+    uint32_t remain;
+
+    if(buffer == 0 || size == 0u || format == 0 || pos >= size) {
+        return pos;
+    }
+
+    remain = size - pos;
+
+    va_start(args, format);
+    len = vsnprintf(&buffer[pos], remain, format, args);
+    va_end(args);
+
+    if(len < 0) {
+        return pos;
+    }
+
+    if((uint32_t)len >= remain) {
+        return size - 1u;
+    }
+
+    return pos + (uint32_t)len;
+}
+
+static uint32_t log_append_vofa_value(char* buffer, uint32_t size, uint32_t pos, const LogVofaValue* value) {
+    if(value == 0) {
+        return pos;
+    }
+
+    switch(value->type) {
+        case LOG_VOFA_VALUE_I64:
+            return log_append_format(buffer, size, pos, "%lld", value->data.i64);
+
+        case LOG_VOFA_VALUE_U64:
+            return log_append_format(buffer, size, pos, "%llu", value->data.u64);
+
+        case LOG_VOFA_VALUE_F64:
+            return log_append_format(buffer, size, pos, "%.6f", value->data.f64);
+
+        case LOG_VOFA_VALUE_BOOL:
+            return log_append_text(buffer, size, pos, value->data.bool_value ? "1" : "0");
+
+        case LOG_VOFA_VALUE_CSTR:
+            return log_append_text(buffer, size, pos, value->data.cstr != 0 ? value->data.cstr : "(null)");
+
+        case LOG_VOFA_VALUE_PTR:
+            return log_append_format(buffer, size, pos, "%p", value->data.ptr);
+
+        default:
+            return log_append_text(buffer, size, pos, "?");
+    }
+}
+
+static LogStatus log_prepare_tx_buffer(char** tx_buffer) {
+    if(tx_buffer == 0) {
+        return LOG_STATUS_INVALID_PARAM;
+    }
+
+    if(s_ops == 0 || s_ops->write == 0) {
+        return LOG_STATUS_NOT_INITIALIZED;
+    }
+
+    if(s_async_write) {
+        if(s_tx_count >= LOG_QUEUE_DEPTH) {
+            return LOG_STATUS_BUSY;
+        }
+
+        *tx_buffer = s_tx_queue[s_tx_tail];
+    }
+    else {
+        *tx_buffer = s_tx_queue[0];
+    }
+
+    return LOG_STATUS_OK;
+}
+
+static LogStatus log_commit_tx_buffer(uint32_t len) {
+    if(len >= LOG_BUFFER_SIZE) {
+        len = LOG_BUFFER_SIZE - 1u;
+    }
+
+    if(s_async_write) {
+        s_tx_len_queue[s_tx_tail] = len;
+        s_tx_tail = (s_tx_tail + 1u) % LOG_QUEUE_DEPTH;
+        s_tx_count++;
+        return log_start_async_write();
+    }
+
+    if(s_ops->write(s_tx_queue[0], len) == false) {
+        return LOG_STATUS_PORT_ERROR;
+    }
+
+    return LOG_STATUS_OK;
 }
 
 static LogStatus log_start_async_write(void) {
