@@ -50,7 +50,7 @@ servo.set_speed(1u, 1.0f);
 servo_set_speed(1u, 1.0f);
 ```
 
-### ServoFeedback
+### BusServoFeedback
 
 ```c
 typedef struct {
@@ -59,7 +59,7 @@ typedef struct {
     float position;
     float speed;
     float torque;
-} ServoFeedback;
+} BusServoFeedback;
 ```
 
 `update_feedback()` 负责主动读取舵机反馈, 解析应答帧, 并更新驱动内部缓存
@@ -74,7 +74,7 @@ typedef struct {
     int (*read)(uint8_t* data, uint16_t len);
     uint32_t(*now_ms)(void);
     void (*delay_ms)(uint32_t ms);
-} ServoPortOps;
+} BusServoPortOps;
 ```
 
 约定
@@ -96,7 +96,7 @@ static uint32_t board_now_ms(void);
 static void board_delay_ms(uint32_t ms);
 static void servo_bus_flush_rx(void);
 
-static const ServoPortOps servo_ops = {
+static const BusServoPortOps servo_ops = {
     .write = servo_bus_write,
     .read = servo_bus_read,
     .now_ms = board_now_ms,
@@ -105,7 +105,7 @@ static const ServoPortOps servo_ops = {
 };
 
 void device_servo_init(void) {
-    ServoConfig config = {
+    BusServoConfig config = {
         .ops = &servo_ops,
         .timeout_ms = 100u,
         .retry_count = 0u,
@@ -122,7 +122,7 @@ void device_servo_init(void) {
 ## 通用使用
 
 ```c
-ServoFeedback feedback;
+BusServoFeedback feedback;
 
 servo.set_speed(1u, 1.5f);
 servo.set_pos_spd(1u, 3.14f, 1.0f);
@@ -151,7 +151,7 @@ ft_scs_servo.write_u8(1u, FT_SCS_SERVO_LOCK, 0u);
 ft_scs_servo.action(FT_SCS_SERVO_BROADCAST_ID);
 ```
 
-`ft_scs_servo_common_instance` 提供通用 `ServoInterface`, `ft_scs_servo_instance` 提供 SCS 协议特色接口
+`ft_scs_servo_common_instance` 提供通用 `BusServoInterface`, `ft_scs_servo_instance` 提供 SCS 协议特色接口
 
 ## FEETECH SCS 映射
 

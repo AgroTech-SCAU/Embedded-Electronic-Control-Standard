@@ -1,7 +1,7 @@
 #ifndef _ft_scs_servo_h_
 #define _ft_scs_servo_h_
 
-#include "servo.h"
+#include "bus_servo.h"
 
 // ! ========================= 接 口 类 型 ========================= ! //
 
@@ -62,7 +62,7 @@
 /**
  * @brief FEETECH SCS 协议特色接口表
  *
- * 这些能力属于 SCS 协议专属能力, 因此不放入通用 ServoInterface
+ * 这些能力属于 SCS 协议专属能力, 因此不放入通用 BusServoInterface
  */
 typedef struct {
     /**
@@ -71,25 +71,25 @@ typedef struct {
      * @param out_id 可选的应答 ID 输出指针, 可为 NULL
      * @return 状态码
      */
-    ServoStatus(*ping)(uint8_t id, uint8_t* out_id);
+    BusServoStatus(*ping)(uint8_t id, uint8_t* out_id);
     /**
      * @brief 打开舵机扭矩输出
      * @param id 舵机 ID
      * @return 状态码
      */
-    ServoStatus(*enable_torque)(uint8_t id);
+    BusServoStatus(*enable_torque)(uint8_t id);
     /**
      * @brief 关闭舵机扭矩输出
      * @param id 舵机 ID
      * @return 状态码
      */
-    ServoStatus(*disable_torque)(uint8_t id);
+    BusServoStatus(*disable_torque)(uint8_t id);
     /**
      * @brief 触发已经预写的 REG_WRITE 命令
      * @param id 舵机 ID 或 FT_SCS_SERVO_BROADCAST_ID
      * @return 状态码
      */
-    ServoStatus(*action)(uint8_t id);
+    BusServoStatus(*action)(uint8_t id);
     /**
      * @brief 向控制表写入 1 字节
      * @param id 舵机 ID
@@ -97,7 +97,7 @@ typedef struct {
      * @param value 写入值
      * @return 状态码
      */
-    ServoStatus(*write_u8)(uint8_t id, uint8_t addr, uint8_t value);
+    BusServoStatus(*write_u8)(uint8_t id, uint8_t addr, uint8_t value);
     /**
      * @brief 向控制表写入 2 字节
      * @param id 舵机 ID
@@ -105,7 +105,7 @@ typedef struct {
      * @param value 写入值
      * @return 状态码
      */
-    ServoStatus(*write_u16)(uint8_t id, uint8_t addr, uint16_t value);
+    BusServoStatus(*write_u16)(uint8_t id, uint8_t addr, uint16_t value);
     /**
      * @brief 从控制表读取 1 字节
      * @param id 舵机 ID
@@ -113,7 +113,7 @@ typedef struct {
      * @param value 读取值输出指针
      * @return 状态码
      */
-    ServoStatus(*read_u8)(uint8_t id, uint8_t addr, uint8_t* value);
+    BusServoStatus(*read_u8)(uint8_t id, uint8_t addr, uint8_t* value);
     /**
      * @brief 从控制表读取 2 字节
      * @param id 舵机 ID
@@ -121,7 +121,7 @@ typedef struct {
      * @param value 读取值输出指针
      * @return 状态码
      */
-    ServoStatus(*read_u16)(uint8_t id, uint8_t addr, uint16_t* value);
+    BusServoStatus(*read_u16)(uint8_t id, uint8_t addr, uint16_t* value);
     /**
      * @brief 发送原始 SCS 指令帧
      * @param id 舵机 ID
@@ -131,18 +131,18 @@ typedef struct {
      * @param need_ack 为真表示非广播 ID 时等待状态帧
      * @return 状态码
      */
-    ServoStatus(*write_packet)(uint8_t id, uint8_t instruction, const uint8_t* params, uint8_t params_len, bool need_ack);
-} FtScsServoInterface;
+    BusServoStatus(*write_packet)(uint8_t id, uint8_t instruction, const uint8_t* params, uint8_t params_len, bool need_ack);
+} FtScsBusServoInterface;
 
 /**
  * @brief FEETECH SCS 驱动实现的通用舵机实例
  */
-extern const ServoInterface ft_scs_servo_common_instance;
+extern const BusServoInterface ft_scs_servo_common_instance;
 
 /**
  * @brief FEETECH SCS 特色实例
  */
-extern const FtScsServoInterface* ft_scs_servo_instance;
+extern const FtScsBusServoInterface* ft_scs_servo_instance;
 
 // ! ========================= 接 口 函 数 ========================= ! //
 

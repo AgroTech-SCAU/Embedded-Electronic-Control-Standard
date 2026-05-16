@@ -1,5 +1,5 @@
-#ifndef _servo_h_
-#define _servo_h_
+#ifndef _bus_servo_h_
+#define _bus_servo_h_
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -7,9 +7,9 @@
 // ! ========================= 接 口 类 型 ========================= ! //
 
 /**
- * @brief 舵机入口单例, 上层可统一调用 servo.xxx 或 servo_xxx
+ * @brief 舵机入口单例, 上层可统一调用 bus_servo.xxx 或 bus_servo_xxx
  */
-#define servo (*servo_instance)
+#define bus_servo (*bus_servo_instance)
 
 /**
  * @brief 舵机通用状态码表
@@ -46,7 +46,7 @@
  */
 typedef enum {
     SERVO_STATUS_TABLE
-} ServoStatus;
+} BusServoStatus;
 #undef X
 
 /**
@@ -57,7 +57,7 @@ typedef enum {
     SERVO_ENDIAN_LITTLE = 0,
     /** 高字节在前, 低字节在后 */
     SERVO_ENDIAN_BIG = 1,
-} ServoEndian;
+} BusServoEndian;
 
 /**
  * @brief 最近一次解析出的通用舵机反馈
@@ -73,7 +73,7 @@ typedef struct {
     float position;
     float speed;
     float torque;
-} ServoFeedback;
+} BusServoFeedback;
 
 /**
  * @brief 舵机底层端口函数表, 由 service 或 platform 注入
@@ -107,7 +107,7 @@ typedef struct {
      * @brief 可选的接收缓冲区清空函数, 发送新指令前调用
      */
     void (*flush_rx)(void);
-} ServoPortOps;
+} BusServoPortOps;
 
 /**
  * @brief 舵机通用初始化配置
@@ -117,11 +117,11 @@ typedef struct {
  * @param endian 具体舵机型号使用的 16 位寄存器字节序
  */
 typedef struct {
-    const ServoPortOps* ops;
+    const BusServoPortOps* ops;
     uint32_t timeout_ms;
     uint8_t retry_count;
-    ServoEndian endian;
-} ServoConfig;
+    BusServoEndian endian;
+} BusServoConfig;
 
 /**
  * @brief 舵机通用接口表
@@ -135,20 +135,20 @@ typedef struct {
      * @param config 初始化配置
      * @return 状态码
      */
-    ServoStatus(*init)(const ServoConfig* config);
+    BusServoStatus(*init)(const BusServoConfig* config);
     /**
      * @brief 将状态码转换为常量字符串
      * @param status 状态码
      * @return 状态码名称字符串
      */
-    const char* (*status_str)(ServoStatus status);
+    const char* (*status_str)(BusServoStatus status);
     /**
      * @brief 让舵机一直以指定速度旋转
      * @param id 舵机 ID
      * @param speed 目标速度, 单位 rad/s
      * @return 状态码
      */
-    ServoStatus(*set_speed)(uint8_t id, float speed);
+    BusServoStatus(*set_speed)(uint8_t id, float speed);
     /**
      * @brief 让舵机以指定速度旋转到指定位置
      * @param id 舵机 ID
@@ -156,7 +156,7 @@ typedef struct {
      * @param velocity 目标速度, 单位 rad/s
      * @return 状态码
      */
-    ServoStatus(*set_pos_spd)(uint8_t id, float position, float velocity);
+    BusServoStatus(*set_pos_spd)(uint8_t id, float position, float velocity);
     /**
      * @brief 让舵机以指定速度和扭矩旋转到指定位置并保持扭矩
      * @param id 舵机 ID
@@ -165,7 +165,7 @@ typedef struct {
      * @param torque 保持扭矩或负载限制, 单位 N*m
      * @return 状态码
      */
-    ServoStatus(*set_pos_spd_tor)(uint8_t id, float position, float velocity, float torque);
+    BusServoStatus(*set_pos_spd_tor)(uint8_t id, float position, float velocity, float torque);
     /**
      * @brief 从本地反馈缓存获取最近解析的位置
      * @param id 舵机 ID
@@ -190,36 +190,36 @@ typedef struct {
      * @param feedback 可选的反馈输出指针, 可为 NULL
      * @return 状态码
      */
-    ServoStatus(*update_feedback)(uint8_t id, ServoFeedback* feedback);
-} ServoInterface;
+    BusServoStatus(*update_feedback)(uint8_t id, BusServoFeedback* feedback);
+} BusServoInterface;
 
 /**
  * @brief 当前绑定的具体舵机实例
  */
-extern const ServoInterface* servo_instance;
+extern const BusServoInterface* bus_servo_instance;
 
 // ! ========================= 接 口 函 数 ========================= ! //
 
 /**
  * @brief 绑定具体舵机实例
- * @param instance 具体舵机接口表, 例如 ft_scs_servo_common_instance
+ * @param instance 具体舵机接口表, 例如 ft_scs_bus_servo_common_instance
  * @return 状态码
  */
-ServoStatus servo_set_instance(const ServoInterface* instance);
+BusServoStatus bus_servo_set_instance(const BusServoInterface* instance);
 
 /**
  * @brief 初始化当前绑定的舵机实例
  * @param config 初始化配置
  * @return 状态码
  */
-ServoStatus servo_init(const ServoConfig* config);
+BusServoStatus bus_servo_init(const BusServoConfig* config);
 
 /**
  * @brief 将状态码转换为常量字符串
  * @param status 状态码
  * @return 状态码名称字符串
  */
-const char* servo_status_str(ServoStatus status);
+const char* bus_servo_status_str(BusServoStatus status);
 
 /**
  * @brief 让舵机一直以指定速度旋转
@@ -227,7 +227,7 @@ const char* servo_status_str(ServoStatus status);
  * @param speed 目标速度, 单位 rad/s
  * @return 状态码
  */
-ServoStatus servo_set_speed(uint8_t id, float speed);
+BusServoStatus bus_servo_set_speed(uint8_t id, float speed);
 
 /**
  * @brief 让舵机以指定速度旋转到指定位置
@@ -236,7 +236,7 @@ ServoStatus servo_set_speed(uint8_t id, float speed);
  * @param velocity 目标速度, 单位 rad/s
  * @return 状态码
  */
-ServoStatus servo_set_pos_spd(uint8_t id, float position, float velocity);
+BusServoStatus bus_servo_set_pos_spd(uint8_t id, float position, float velocity);
 
 /**
  * @brief 让舵机以指定速度和扭矩旋转到指定位置并保持扭矩
@@ -246,28 +246,28 @@ ServoStatus servo_set_pos_spd(uint8_t id, float position, float velocity);
  * @param torque 保持扭矩或负载限制, 单位 N*m
  * @return 状态码
  */
-ServoStatus servo_set_pos_spd_tor(uint8_t id, float position, float velocity, float torque);
+BusServoStatus bus_servo_set_pos_spd_tor(uint8_t id, float position, float velocity, float torque);
 
 /**
  * @brief 从本地反馈缓存获取最近解析的位置
  * @param id 舵机 ID
  * @return 最近解析的位置, 单位 rad
  */
-float servo_get_position(uint8_t id);
+float bus_servo_get_position(uint8_t id);
 
 /**
  * @brief 从本地反馈缓存获取最近解析的速度
  * @param id 舵机 ID
  * @return 最近解析的速度, 单位 rad/s
  */
-float servo_get_speed(uint8_t id);
+float bus_servo_get_speed(uint8_t id);
 
 /**
  * @brief 从本地反馈缓存获取最近解析的扭矩
  * @param id 舵机 ID
  * @return 最近解析的扭矩或负载估计, 单位 N*m
  */
-float servo_get_torque(uint8_t id);
+float bus_servo_get_torque(uint8_t id);
 
 /**
  * @brief 主动请求并解析反馈, 然后更新本地反馈缓存
@@ -275,6 +275,6 @@ float servo_get_torque(uint8_t id);
  * @param feedback 可选的反馈输出指针, 可为 NULL
  * @return 状态码
  */
-ServoStatus servo_update_feedback(uint8_t id, ServoFeedback* feedback);
+BusServoStatus bus_servo_update_feedback(uint8_t id, BusServoFeedback* feedback);
 
 #endif

@@ -67,27 +67,27 @@
  * @brief FEETECH SCS 驱动运行上下文
  */
 typedef struct {
-    const ServoPortOps* ops;
+    const BusServoPortOps* ops;
     uint32_t timeout_ms;
     uint8_t retry_count;
-    ServoEndian endian;
+    BusServoEndian endian;
     bool initialized;
     uint8_t last_error_code;
-    ServoFeedback feedback;
+    BusServoFeedback feedback;
     bool has_feedback;
     uint8_t last_tx_id;
     uint8_t last_tx_instruction;
     uint8_t last_tx_params[FT_SCS_FRAME_MAX];
     uint8_t last_tx_params_len;
     bool has_last_tx;
-} FtScsServoContext;
+} FtScsBusServoContext;
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
 /**
  * @brief 单例运行上下文
  */
-static FtScsServoContext s_ctx;
+static FtScsBusServoContext s_ctx;
 
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
 
@@ -96,14 +96,14 @@ static FtScsServoContext s_ctx;
  * @param config 初始化配置
  * @return 状态码
  */
-static ServoStatus ft_scs_common_init(const ServoConfig* config);
+static BusServoStatus ft_scs_common_init(const BusServoConfig* config);
 
 /**
  * @brief 将状态码转换为字符串
  * @param status 状态码
  * @return 状态码名称字符串
  */
-static const char* ft_scs_common_status_str(ServoStatus status);
+static const char* ft_scs_common_status_str(BusServoStatus status);
 
 /**
  * @brief 让舵机一直以指定速度旋转
@@ -111,7 +111,7 @@ static const char* ft_scs_common_status_str(ServoStatus status);
  * @param speed 目标速度, 单位 rad/s
  * @return 状态码
  */
-static ServoStatus ft_scs_common_set_speed(uint8_t id, float speed);
+static BusServoStatus ft_scs_common_set_speed(uint8_t id, float speed);
 
 /**
  * @brief 让舵机以指定速度旋转到指定位置
@@ -120,7 +120,7 @@ static ServoStatus ft_scs_common_set_speed(uint8_t id, float speed);
  * @param velocity 目标速度, 单位 rad/s
  * @return 状态码
  */
-static ServoStatus ft_scs_common_set_pos_spd(uint8_t id, float position, float velocity);
+static BusServoStatus ft_scs_common_set_pos_spd(uint8_t id, float position, float velocity);
 
 /**
  * @brief 让舵机以指定速度和扭矩旋转到指定位置并保持扭矩
@@ -130,7 +130,7 @@ static ServoStatus ft_scs_common_set_pos_spd(uint8_t id, float position, float v
  * @param torque 保持扭矩或负载限制, 单位 N*m
  * @return 状态码
  */
-static ServoStatus ft_scs_common_set_pos_spd_tor(uint8_t id, float position, float velocity, float torque);
+static BusServoStatus ft_scs_common_set_pos_spd_tor(uint8_t id, float position, float velocity, float torque);
 
 /**
  * @brief 获取缓存的位置
@@ -159,7 +159,7 @@ static float ft_scs_common_get_torque(uint8_t id);
  * @param feedback 可选的反馈输出指针
  * @return 状态码
  */
-static ServoStatus ft_scs_common_update_feedback(uint8_t id, ServoFeedback* feedback);
+static BusServoStatus ft_scs_common_update_feedback(uint8_t id, BusServoFeedback* feedback);
 
 /**
  * @brief 发送 PING 并等待状态帧
@@ -167,28 +167,28 @@ static ServoStatus ft_scs_common_update_feedback(uint8_t id, ServoFeedback* feed
  * @param out_id 可选的 ID 输出指针
  * @return 状态码
  */
-static ServoStatus ft_scs_ping(uint8_t id, uint8_t* out_id);
+static BusServoStatus ft_scs_ping(uint8_t id, uint8_t* out_id);
 
 /**
  * @brief 打开扭矩输出
  * @param id 舵机 ID
  * @return 状态码
  */
-static ServoStatus ft_scs_enable_torque(uint8_t id);
+static BusServoStatus ft_scs_enable_torque(uint8_t id);
 
 /**
  * @brief 关闭扭矩输出
  * @param id 舵机 ID
  * @return 状态码
  */
-static ServoStatus ft_scs_disable_torque(uint8_t id);
+static BusServoStatus ft_scs_disable_torque(uint8_t id);
 
 /**
  * @brief 触发 REG_WRITE 命令
  * @param id 舵机 ID 或广播 ID
  * @return 状态码
  */
-static ServoStatus ft_scs_action(uint8_t id);
+static BusServoStatus ft_scs_action(uint8_t id);
 
 /**
  * @brief 向控制表寄存器写入 1 字节
@@ -197,7 +197,7 @@ static ServoStatus ft_scs_action(uint8_t id);
  * @param value 写入值
  * @return 状态码
  */
-static ServoStatus ft_scs_write_u8(uint8_t id, uint8_t addr, uint8_t value);
+static BusServoStatus ft_scs_write_u8(uint8_t id, uint8_t addr, uint8_t value);
 
 /**
  * @brief 向控制表寄存器写入 2 字节
@@ -206,7 +206,7 @@ static ServoStatus ft_scs_write_u8(uint8_t id, uint8_t addr, uint8_t value);
  * @param value 写入值
  * @return 状态码
  */
-static ServoStatus ft_scs_write_u16(uint8_t id, uint8_t addr, uint16_t value);
+static BusServoStatus ft_scs_write_u16(uint8_t id, uint8_t addr, uint16_t value);
 
 /**
  * @brief 从控制表寄存器读取 1 字节
@@ -215,7 +215,7 @@ static ServoStatus ft_scs_write_u16(uint8_t id, uint8_t addr, uint16_t value);
  * @param value 读取值输出指针
  * @return 状态码
  */
-static ServoStatus ft_scs_read_u8(uint8_t id, uint8_t addr, uint8_t* value);
+static BusServoStatus ft_scs_read_u8(uint8_t id, uint8_t addr, uint8_t* value);
 
 /**
  * @brief 从控制表寄存器读取 2 字节
@@ -224,7 +224,7 @@ static ServoStatus ft_scs_read_u8(uint8_t id, uint8_t addr, uint8_t* value);
  * @param value 读取值输出指针
  * @return 状态码
  */
-static ServoStatus ft_scs_read_u16(uint8_t id, uint8_t addr, uint16_t* value);
+static BusServoStatus ft_scs_read_u16(uint8_t id, uint8_t addr, uint16_t* value);
 
 /**
  * @brief 发送原始 SCS 帧
@@ -235,13 +235,13 @@ static ServoStatus ft_scs_read_u16(uint8_t id, uint8_t addr, uint16_t* value);
  * @param need_ack 为真表示尽可能等待状态帧
  * @return 状态码
  */
-static ServoStatus ft_scs_write_packet(uint8_t id, uint8_t instruction, const uint8_t* params, uint8_t params_len, bool need_ack);
+static BusServoStatus ft_scs_write_packet(uint8_t id, uint8_t instruction, const uint8_t* params, uint8_t params_len, bool need_ack);
 
 /**
  * @brief 检查初始化状态和必要端口函数
  * @return 状态码
  */
-static ServoStatus validate_initialized(void);
+static BusServoStatus validate_initialized(void);
 
 /**
  * @brief 在超时前读取指定数量的字节
@@ -249,7 +249,7 @@ static ServoStatus validate_initialized(void);
  * @param len 期望字节数
  * @return 状态码
  */
-static ServoStatus read_exact(uint8_t* data, uint16_t len);
+static BusServoStatus read_exact(uint8_t* data, uint16_t len);
 
 /**
  * @brief 读取并解析状态帧
@@ -260,7 +260,7 @@ static ServoStatus read_exact(uint8_t* data, uint16_t len);
  * @param out_error 可选的原始错误码输出指针
  * @return 状态码
  */
-static ServoStatus read_status_packet(uint8_t expected_id, uint8_t* params, uint8_t params_cap, uint8_t* out_params_len, uint8_t* out_error);
+static BusServoStatus read_status_packet(uint8_t expected_id, uint8_t* params, uint8_t params_cap, uint8_t* out_params_len, uint8_t* out_error);
 
 /**
  * @brief 读取连续控制表数据块
@@ -270,7 +270,7 @@ static ServoStatus read_status_packet(uint8_t expected_id, uint8_t* params, uint
  * @param len 读取长度
  * @return 状态码
  */
-static ServoStatus read_data(uint8_t id, uint8_t addr, uint8_t* data, uint8_t len);
+static BusServoStatus read_data(uint8_t id, uint8_t addr, uint8_t* data, uint8_t len);
 
 /**
  * @brief 写入连续控制表数据块
@@ -281,7 +281,7 @@ static ServoStatus read_data(uint8_t id, uint8_t addr, uint8_t* data, uint8_t le
  * @param instruction WRITE 或 REG_WRITE 指令
  * @return 状态码
  */
-static ServoStatus write_data(uint8_t id, uint8_t addr, const uint8_t* data, uint8_t len, uint8_t instruction, bool need_ack);
+static BusServoStatus write_data(uint8_t id, uint8_t addr, const uint8_t* data, uint8_t len, uint8_t instruction, bool need_ack);
 
 /**
  * @brief 构造加速度, 位置, 时间和速度控制数据
@@ -368,9 +368,9 @@ static float raw_to_torque(int16_t raw);
 // ! ========================= 接 口 实 例 ========================= ! //
 
 /**
- * @brief SCS 驱动实现的 ServoInterface 实例
+ * @brief SCS 驱动实现的 BusServoInterface 实例
  */
-const ServoInterface ft_scs_servo_common_instance = {
+const BusServoInterface ft_scs_servo_common_instance = {
     .init = ft_scs_common_init,
     .status_str = ft_scs_common_status_str,
     .set_speed = ft_scs_common_set_speed,
@@ -385,7 +385,7 @@ const ServoInterface ft_scs_servo_common_instance = {
 /**
  * @brief 具体 SCS 特色接口表
  */
-static const FtScsServoInterface s_ft_scs_servo_feature_instance = {
+static const FtScsBusServoInterface s_ft_scs_servo_feature_instance = {
     .ping = ft_scs_ping,
     .enable_torque = ft_scs_enable_torque,
     .disable_torque = ft_scs_disable_torque,
@@ -400,7 +400,7 @@ static const FtScsServoInterface s_ft_scs_servo_feature_instance = {
 /**
  * @brief FEETECH SCS 特色单例
  */
-const FtScsServoInterface* ft_scs_servo_instance = &s_ft_scs_servo_feature_instance;
+const FtScsBusServoInterface* ft_scs_servo_instance = &s_ft_scs_servo_feature_instance;
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
@@ -440,7 +440,7 @@ uint16_t ft_scs_servo_signed_to_raw(int16_t value) {
 /**
  * @brief 初始化 SCS 通用舵机实例
  */
-static ServoStatus ft_scs_common_init(const ServoConfig* config) {
+static BusServoStatus ft_scs_common_init(const BusServoConfig* config) {
     if(config == 0 || config->ops == 0 || config->ops->write == 0 ||
         config->ops->read == 0 || config->ops->now_ms == 0) {
         return SERVO_STATUS_INVALID_PARAM;
@@ -464,7 +464,7 @@ static ServoStatus ft_scs_common_init(const ServoConfig* config) {
 /**
  * @brief 将状态码转换为字符串
  */
-static const char* ft_scs_common_status_str(ServoStatus status) {
+static const char* ft_scs_common_status_str(BusServoStatus status) {
     switch(status) {
 #define X(name, value) case SERVO_STATUS_##name: return #name;
         SERVO_STATUS_TABLE
@@ -476,13 +476,13 @@ static const char* ft_scs_common_status_str(ServoStatus status) {
 /**
  * @brief 让舵机一直以指定速度旋转
  */
-static ServoStatus ft_scs_common_set_speed(uint8_t id, float speed) {
+static BusServoStatus ft_scs_common_set_speed(uint8_t id, float speed) {
     uint8_t data[FT_SCS_POS_PACKET_LEN];
     uint8_t mode = 1u;
     uint8_t torque_enable = 1u;
     int16_t speed_raw;
 
-    ServoStatus status = write_data(id, FT_SCS_SERVO_TORQUE_ENABLE, &torque_enable, 1u, FT_SCS_SERVO_INST_WRITE, true);
+    BusServoStatus status = write_data(id, FT_SCS_SERVO_TORQUE_ENABLE, &torque_enable, 1u, FT_SCS_SERVO_INST_WRITE, true);
     if(status != SERVO_STATUS_OK) {
         return status;
     }
@@ -501,11 +501,11 @@ static ServoStatus ft_scs_common_set_speed(uint8_t id, float speed) {
 /**
  * @brief 让舵机以指定速度旋转到指定位置
  */
-static ServoStatus ft_scs_common_set_pos_spd(uint8_t id, float position, float velocity) {
+static BusServoStatus ft_scs_common_set_pos_spd(uint8_t id, float position, float velocity) {
     uint8_t data[FT_SCS_POS_PACKET_LEN];
     uint8_t mode = 0u;
     uint8_t torque_enable = 1u;
-    ServoStatus status;
+    BusServoStatus status;
     int16_t speed_raw;
 
     status = write_data(id, FT_SCS_SERVO_TORQUE_ENABLE, &torque_enable, 1u, FT_SCS_SERVO_INST_WRITE, true);
@@ -529,9 +529,9 @@ static ServoStatus ft_scs_common_set_pos_spd(uint8_t id, float position, float v
 /**
  * @brief 让舵机以指定速度和扭矩旋转到指定位置并保持扭矩
  */
-static ServoStatus ft_scs_common_set_pos_spd_tor(uint8_t id, float position, float velocity, float torque) {
+static BusServoStatus ft_scs_common_set_pos_spd_tor(uint8_t id, float position, float velocity, float torque) {
     uint8_t data[2];
-    ServoStatus status;
+    BusServoStatus status;
 
     split_u16(torque_to_raw(torque), &data[0], &data[1]);
     status = write_data(id, FT_SCS_SERVO_TORQUE_LIMIT_L, data, sizeof(data), FT_SCS_SERVO_INST_WRITE, true);
@@ -578,10 +578,10 @@ static float ft_scs_common_get_torque(uint8_t id) {
 /**
  * @brief 从总线读取反馈并更新缓存
  */
-static ServoStatus ft_scs_common_update_feedback(uint8_t id, ServoFeedback* feedback) {
+static BusServoStatus ft_scs_common_update_feedback(uint8_t id, BusServoFeedback* feedback) {
     uint8_t data[FT_SCS_FEEDBACK_LEN];
-    ServoStatus status;
-    ServoFeedback parsed;
+    BusServoStatus status;
+    BusServoFeedback parsed;
 
     status = read_data(id, FT_SCS_SERVO_PRESENT_POSITION_L, data, sizeof(data));
     if(status != SERVO_STATUS_OK) {
@@ -607,9 +607,9 @@ static ServoStatus ft_scs_common_update_feedback(uint8_t id, ServoFeedback* feed
 /**
  * @brief 发送 PING 并等待状态帧
  */
-static ServoStatus ft_scs_ping(uint8_t id, uint8_t* out_id) {
+static BusServoStatus ft_scs_ping(uint8_t id, uint8_t* out_id) {
     uint8_t error = 0u;
-    ServoStatus status = ft_scs_write_packet(id, FT_SCS_SERVO_INST_PING, 0, 0u, false);
+    BusServoStatus status = ft_scs_write_packet(id, FT_SCS_SERVO_INST_PING, 0, 0u, false);
     if(status != SERVO_STATUS_OK) {
         return status;
     }
@@ -631,35 +631,35 @@ static ServoStatus ft_scs_ping(uint8_t id, uint8_t* out_id) {
 /**
  * @brief 打开扭矩输出
  */
-static ServoStatus ft_scs_enable_torque(uint8_t id) {
+static BusServoStatus ft_scs_enable_torque(uint8_t id) {
     return ft_scs_write_u8(id, FT_SCS_SERVO_TORQUE_ENABLE, 1u);
 }
 
 /**
  * @brief 关闭扭矩输出
  */
-static ServoStatus ft_scs_disable_torque(uint8_t id) {
+static BusServoStatus ft_scs_disable_torque(uint8_t id) {
     return ft_scs_write_u8(id, FT_SCS_SERVO_TORQUE_ENABLE, 0u);
 }
 
 /**
  * @brief 触发 REG_WRITE 命令
  */
-static ServoStatus ft_scs_action(uint8_t id) {
+static BusServoStatus ft_scs_action(uint8_t id) {
     return ft_scs_write_packet(id, FT_SCS_SERVO_INST_ACTION, 0, 0u, id != FT_SCS_SERVO_BROADCAST_ID);
 }
 
 /**
  * @brief 向控制表寄存器写入 1 字节
  */
-static ServoStatus ft_scs_write_u8(uint8_t id, uint8_t addr, uint8_t value) {
+static BusServoStatus ft_scs_write_u8(uint8_t id, uint8_t addr, uint8_t value) {
     return write_data(id, addr, &value, 1u, FT_SCS_SERVO_INST_WRITE, true);
 }
 
 /**
  * @brief 向控制表寄存器写入 2 字节
  */
-static ServoStatus ft_scs_write_u16(uint8_t id, uint8_t addr, uint16_t value) {
+static BusServoStatus ft_scs_write_u16(uint8_t id, uint8_t addr, uint16_t value) {
     uint8_t data[2];
 
     split_u16(value, &data[0], &data[1]);
@@ -669,7 +669,7 @@ static ServoStatus ft_scs_write_u16(uint8_t id, uint8_t addr, uint16_t value) {
 /**
  * @brief 从控制表寄存器读取 1 字节
  */
-static ServoStatus ft_scs_read_u8(uint8_t id, uint8_t addr, uint8_t* value) {
+static BusServoStatus ft_scs_read_u8(uint8_t id, uint8_t addr, uint8_t* value) {
     if(value == 0) {
         return SERVO_STATUS_INVALID_PARAM;
     }
@@ -680,9 +680,9 @@ static ServoStatus ft_scs_read_u8(uint8_t id, uint8_t addr, uint8_t* value) {
 /**
  * @brief 从控制表寄存器读取 2 字节
  */
-static ServoStatus ft_scs_read_u16(uint8_t id, uint8_t addr, uint16_t* value) {
+static BusServoStatus ft_scs_read_u16(uint8_t id, uint8_t addr, uint16_t* value) {
     uint8_t data[2];
-    ServoStatus status;
+    BusServoStatus status;
 
     if(value == 0) {
         return SERVO_STATUS_INVALID_PARAM;
@@ -700,8 +700,8 @@ static ServoStatus ft_scs_read_u16(uint8_t id, uint8_t addr, uint16_t* value) {
 /**
  * @brief 发送原始 SCS 帧
  */
-static ServoStatus ft_scs_write_packet(uint8_t id, uint8_t instruction, const uint8_t* params, uint8_t params_len, bool need_ack) {
-    ServoStatus status = validate_initialized();
+static BusServoStatus ft_scs_write_packet(uint8_t id, uint8_t instruction, const uint8_t* params, uint8_t params_len, bool need_ack) {
+    BusServoStatus status = validate_initialized();
     uint8_t frame[FT_SCS_FRAME_MAX];
     uint8_t len;
     uint16_t frame_len;
@@ -762,7 +762,7 @@ static ServoStatus ft_scs_write_packet(uint8_t id, uint8_t instruction, const ui
 /**
  * @brief 检查初始化状态和必要端口函数
  */
-static ServoStatus validate_initialized(void) {
+static BusServoStatus validate_initialized(void) {
     if(s_ctx.initialized == false) {
         return SERVO_STATUS_NOT_INITIALIZE;
     }
@@ -777,7 +777,7 @@ static ServoStatus validate_initialized(void) {
 /**
  * @brief 在超时前读取指定数量的字节
  */
-static ServoStatus read_exact(uint8_t* data, uint16_t len) {
+static BusServoStatus read_exact(uint8_t* data, uint16_t len) {
     uint16_t offset = 0u;
     uint32_t start;
 
@@ -805,7 +805,7 @@ static ServoStatus read_exact(uint8_t* data, uint16_t len) {
 /**
  * @brief 读取并解析状态帧
  */
-static ServoStatus read_status_packet(uint8_t expected_id, uint8_t* params, uint8_t params_cap, uint8_t* out_params_len, uint8_t* out_error) {
+static BusServoStatus read_status_packet(uint8_t expected_id, uint8_t* params, uint8_t params_cap, uint8_t* out_params_len, uint8_t* out_error) {
     uint8_t b;
     uint8_t last;
     uint8_t id;
@@ -818,7 +818,7 @@ static ServoStatus read_status_packet(uint8_t expected_id, uint8_t* params, uint
     uint8_t i;
     uint8_t skipped;
     uint32_t start;
-    ServoStatus status;
+    BusServoStatus status;
 
     status = validate_initialized();
     if(status != SERVO_STATUS_OK) {
@@ -929,11 +929,11 @@ static ServoStatus read_status_packet(uint8_t expected_id, uint8_t* params, uint
 /**
  * @brief 读取连续控制表数据块
  */
-static ServoStatus read_data(uint8_t id, uint8_t addr, uint8_t* data, uint8_t len) {
+static BusServoStatus read_data(uint8_t id, uint8_t addr, uint8_t* data, uint8_t len) {
     uint8_t params[2];
     uint8_t rx_len = 0u;
     uint8_t error = 0u;
-    ServoStatus status;
+    BusServoStatus status;
 
     if(data == 0 || len == 0u) {
         return SERVO_STATUS_INVALID_PARAM;
@@ -964,7 +964,7 @@ static ServoStatus read_data(uint8_t id, uint8_t addr, uint8_t* data, uint8_t le
 /**
  * @brief 写入连续控制表数据块
  */
-static ServoStatus write_data(uint8_t id, uint8_t addr, const uint8_t* data, uint8_t len, uint8_t instruction, bool need_ack) {
+static BusServoStatus write_data(uint8_t id, uint8_t addr, const uint8_t* data, uint8_t len, uint8_t instruction, bool need_ack) {
     uint8_t params[FT_SCS_FRAME_MAX];
 
     if(data == 0 || len == 0u) {

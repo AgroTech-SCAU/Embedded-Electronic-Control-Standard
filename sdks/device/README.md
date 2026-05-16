@@ -27,7 +27,7 @@ device SDK 统一采用以下方向建设 PortOps 模板：
 sdks/device/
 ├── motor/          # 已有：CAN 电机 PortOps 与实例接口
 ├── rgb_led/        # 已有：RGB 灯统一接口与 WS2812 实例
-├── servo/          # 计划：PWM/UART/CAN 舵机 PortOps
+├── bus_servo/          # 计划：PWM/UART/CAN 舵机 PortOps
 ├── encoder/        # 计划：GPIO/Timer/SPI 编码器 PortOps
 ├── imu/            # 计划：SPI/I2C/UART IMU PortOps
 ├── can_sensor/     # 计划：CAN 传感器通用接入模板
