@@ -7,9 +7,9 @@
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
 /**
- * @brief 电机入口单例，用户上层统一调用 motor.xxx 或 motor_xxx
+ * @brief 电机入口单例，用户上层统一调用 bus_motor.xxx 或 bus_motor_xxx
  */
-#define motor (*motor_instance)
+#define bus_motor (*bus_motor_instance)
 
 /**
  * @brief 通用电机状态码表，使用 X-Macro 定义，方便维护和扩展
@@ -44,13 +44,13 @@
 #define X(name, value) MOTOR_STATUS_##name = value,
 typedef enum {
     MOTOR_STATUS_TABLE
-} MotorStatus;
+} BusMotorStatus;
 #undef X
 
 #define Y(name, value) MOTOR_MODE_##name = value,
 typedef enum {
     MOTOR_MODE_TABLE
-} MotorMode;
+} BusMotorMode;
 #undef Y
 
 /**
@@ -67,7 +67,7 @@ typedef struct {
     float pos_rad;
     float spd_rad_s;
     float torque_a;
-} MotorFeedback;
+} BusMotorFeedback;
 
 /**
  * @brief 电机底层端口函数表，由 service init 绑定 platform 或 adapter
@@ -81,7 +81,7 @@ typedef struct {
     bool(*read)(uint32_t* id, uint8_t* data, uint8_t* len);
     uint32_t(*now_ms)(void);
     void(*delay_ms)(uint32_t ms);
-} MotorPortOps;
+} BusMotorPortOps;
 
 /**
  * @brief 电机初始化配置
@@ -89,44 +89,44 @@ typedef struct {
  * @param feedback_timeout_ms 等待反馈超时时间，单位 ms
  */
 typedef struct {
-    const MotorPortOps* ops;
+    const BusMotorPortOps* ops;
     uint32_t feedback_timeout_ms;
-} MotorConfig;
+} BusMotorConfig;
 
 /**
  * @brief 电机统一接口表，不同电机实例提供同一组接口
  */
 typedef struct {
-    MotorStatus(*init)(const MotorConfig* config);
-    const char* (*status_str)(MotorStatus status);
-    const char* (*mode_str)(MotorMode mode);
-    MotorStatus(*enable)(uint16_t id);
-    MotorStatus(*disable)(uint16_t id);
-    MotorStatus(*set_mit)(uint16_t id, float pos_rad, float spd_rad_s, float kp, float kd, float torque_a);
-    MotorStatus(*set_pos_spd)(uint16_t id, float pos_rad, float spd_rad_s);
-    MotorStatus(*set_spd)(uint16_t id, float spd_rad_s);
-    MotorStatus(*set_pos_spd_cur)(uint16_t id, float pos_rad, float spd_rad_s, float cur_a);
-    MotorStatus(*request_feedback)(uint16_t id);
-    MotorStatus(*get_feedback)(uint16_t id, MotorFeedback* feedback);
-    MotorStatus(*update)(MotorFeedback* feedback);
-} MotorInterface;
+    BusMotorStatus(*init)(const BusMotorConfig* config);
+    const char* (*status_str)(BusMotorStatus status);
+    const char* (*mode_str)(BusMotorMode mode);
+    BusMotorStatus(*enable)(uint16_t id);
+    BusMotorStatus(*disable)(uint16_t id);
+    BusMotorStatus(*set_mit)(uint16_t id, float pos_rad, float spd_rad_s, float kp, float kd, float torque_a);
+    BusMotorStatus(*set_pos_spd)(uint16_t id, float pos_rad, float spd_rad_s);
+    BusMotorStatus(*set_spd)(uint16_t id, float spd_rad_s);
+    BusMotorStatus(*set_pos_spd_cur)(uint16_t id, float pos_rad, float spd_rad_s, float cur_a);
+    BusMotorStatus(*request_feedback)(uint16_t id);
+    BusMotorStatus(*get_feedback)(uint16_t id, BusMotorFeedback* feedback);
+    BusMotorStatus(*update)(BusMotorFeedback* feedback);
+} BusMotorInterface;
 
-extern const MotorInterface* motor_instance;
+extern const BusMotorInterface* bus_motor_instance;
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
-MotorStatus motor_set_instance(const MotorInterface* instance);
-MotorStatus motor_init(const MotorConfig* config);
-const char* motor_status_str(MotorStatus status);
-const char* motor_mode_str(MotorMode mode);
-MotorStatus motor_enable(uint16_t id);
-MotorStatus motor_disable(uint16_t id);
-MotorStatus motor_set_mit(uint16_t id, float pos_rad, float spd_rad_s, float kp, float kd, float torque_a);
-MotorStatus motor_set_pos_spd(uint16_t id, float pos_rad, float spd_rad_s);
-MotorStatus motor_set_spd(uint16_t id, float spd_rad_s);
-MotorStatus motor_set_pos_spd_cur(uint16_t id, float pos_rad, float spd_rad_s, float cur_a);
-MotorStatus motor_request_feedback(uint16_t id);
-MotorStatus motor_get_feedback(uint16_t id, MotorFeedback* feedback);
-MotorStatus motor_update(MotorFeedback* feedback);
+BusMotorStatus bus_motor_set_instance(const BusMotorInterface* instance);
+BusMotorStatus bus_motor_init(const BusMotorConfig* config);
+const char* bus_motor_status_str(BusMotorStatus status);
+const char* bus_motor_mode_str(BusMotorMode mode);
+BusMotorStatus bus_motor_enable(uint16_t id);
+BusMotorStatus bus_motor_disable(uint16_t id);
+BusMotorStatus bus_motor_set_mit(uint16_t id, float pos_rad, float spd_rad_s, float kp, float kd, float torque_a);
+BusMotorStatus bus_motor_set_pos_spd(uint16_t id, float pos_rad, float spd_rad_s);
+BusMotorStatus bus_motor_set_spd(uint16_t id, float spd_rad_s);
+BusMotorStatus bus_motor_set_pos_spd_cur(uint16_t id, float pos_rad, float spd_rad_s, float cur_a);
+BusMotorStatus bus_motor_request_feedback(uint16_t id);
+BusMotorStatus bus_motor_get_feedback(uint16_t id, BusMotorFeedback* feedback);
+BusMotorStatus bus_motor_update(BusMotorFeedback* feedback);
 
 #endif

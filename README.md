@@ -28,7 +28,7 @@ Status: Draft v0.1
 | `团队协作开发文档.md` | Git/GitHub、分支、commit、PR、issue、submodule 协作规范 |
 | `sdks/infra/` | 通用基础设施 SDK，例如 delay、matrix、PID、parser、HFSM、log |
 | `sdks/domain/` | 领域/算法 SDK，例如机械臂运动学、舵轮运动学 |
-| `sdks/device/` | 常用真实设备 SDK，例如 motor、rgb_led，后续用于 bus_servo、encoder、IMU 等 |
+| `sdks/device/` | 常用真实设备 SDK，例如 bus_motor、rgb_led，后续用于 bus_servo、encoder、IMU 等 |
 
 ---
 
@@ -248,9 +248,9 @@ sdks/domain/
 
 ```text
 sdks/device/
-├── motor/
-│   ├── motor.c / motor.h
-│   └── dm_motor.c / dm_motor.h
+├── bus_motor/
+│   ├── bus_motor.c / bus_motor.h
+│   └── dm_bus_motor.c / dm_bus_motor.h
 └── rgb_led/
     ├── rgb_led.c / rgb_led.h
     └── ws2812_rgb_led.c / ws2812_rgb_led.h

@@ -1,7 +1,7 @@
 #ifndef DM_MOTOR_H
 #define DM_MOTOR_H
 
-#include "motor.h"
+#include "bus_motor.h"
 
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
@@ -38,7 +38,7 @@
 /**
  * @brief 达妙电机实例，service 可通过 motor_set_instance(&dm_motor_instance) 绑定为统一入口
  */
-extern const MotorInterface dm_motor_instance;
+extern const BusMotorInterface dm_motor_instance;
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
