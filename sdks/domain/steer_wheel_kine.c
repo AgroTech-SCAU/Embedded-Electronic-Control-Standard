@@ -11,6 +11,7 @@
 #define SW_2PI (2.0f * SW_PI)
 #define SW_HALF_PI (0.5f * SW_PI)
 #define SW_EPS 1e-6f
+#define SW_OPTIMIZE_HYSTERESIS_RAD 0.08f
 
 /**
  * @brief 舵轮运动学入口单例定义表
@@ -205,9 +206,9 @@ static void sw_get_wheel_pos(const SteerWheelModel* model, float x[4], float y[4
     const float hx = model->length * 0.5f;
     const float hy = model->width * 0.5f;
 
-    // 约定顺序: FL, FR, RL, RR
-    x[0] = hx;  y[0] = hy;
-    x[1] = hx;  y[1] = -hy;
+    /* 约定顺序: FL, FR, RR, RL */
+    x[0] = hx;  y[0] = -hy;
+    x[1] = hx;  y[1] = hy;
     x[2] = -hx;  y[2] = hy;
     x[3] = -hx;  y[3] = -hy;
 }
@@ -221,7 +222,7 @@ static void sw_get_wheel_pos(const SteerWheelModel* model, float x[4], float y[4
 static void sw_optimize_module(float* target_angle, float* target_speed, float current_angle) {
     float err = sw_wrap_pi(*target_angle - current_angle);
 
-    if(sw_absf(err) > SW_HALF_PI) {
+    if(sw_absf(err) > (SW_HALF_PI + SW_OPTIMIZE_HYSTERESIS_RAD)) {
         *target_angle = sw_wrap_pi(*target_angle + SW_PI);
         *target_speed = -*target_speed;
     }

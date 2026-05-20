@@ -1,8 +1,7 @@
-#ifndef SIX_DOF_ARM_KINE_H
-#define SIX_DOF_ARM_KINE_H
+#ifndef _six_dof_arm_kine_h_
+#define _six_dof_arm_kine_h_
 
 #include <stdint.h>
-
 
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 

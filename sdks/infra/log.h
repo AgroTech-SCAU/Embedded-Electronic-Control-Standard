@@ -65,6 +65,13 @@
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
 /**
+ * @brief 如果编译器支持 C11 标准，则此处定义为 true 以启用 log_vofa(...) 宏，否则改为 false
+ */
+#ifndef LOG_USE_C11
+#define LOG_USE_C11 false
+#endif
+
+/**
  * @brief 日志输出缓冲区大小，单位 byte
  */
 #ifndef LOG_BUFFER_SIZE
@@ -75,7 +82,7 @@
  * @brief 日志异步输出队列深度
  */
 #ifndef LOG_QUEUE_DEPTH
-#define LOG_QUEUE_DEPTH 4u
+#define LOG_QUEUE_DEPTH 16u
 #endif
 
 /**
@@ -227,6 +234,8 @@ LogStatus log_warn(const char* format, ...) LOG_PRINTF_FORMAT(1, 2);
  */
 LogStatus log_error(const char* format, ...) LOG_PRINTF_FORMAT(1, 2);
 
+#if LOG_USE_C11
+
 /**
  * @brief 构造 VOFA 变量值
  *
@@ -256,8 +265,6 @@ LogStatus log_vofa_write(const char* names, uint32_t count, const LogVofaValue* 
 const char* log_status_str(LogStatus status);
 
 #undef LOG_PRINTF_FORMAT
-
-// ! ========================= VOFA 宏实现 ========================= ! //
 
 #define LOG_VOFA_CAT_IMPL(a, b) a##b
 #define LOG_VOFA_CAT(a, b) LOG_VOFA_CAT_IMPL(a, b)
@@ -323,5 +330,7 @@ const char* log_status_str(LogStatus status);
     log_vofa_write(#__VA_ARGS__, \
                    (uint32_t)LOG_VOFA_ARG_COUNT(__VA_ARGS__), \
                    (const LogVofaValue[]){LOG_VOFA_VALUES(__VA_ARGS__)})
+
+#endif
 
 #endif
