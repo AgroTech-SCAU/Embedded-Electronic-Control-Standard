@@ -107,8 +107,10 @@ RoboMaster 强队的电控体系具有以下优势：
     app 不直接操作 HAL/FSP/CubeMX 句柄
     app 不直接拼 CAN/UART/SPI 帧
     device public header 不暴露芯片平台头文件
-    domain 不依赖 device/platform
-    infra 尽量无芯片依赖和业务依赖
+    app 只依赖 service
+    device 只依赖 infra
+    domain 只依赖 infra
+    infra 不依赖任何项目层；如需外部能力，由 service 注入
     platform 是唯一允许直接包含芯片 HAL/FSP/CMSIS/CubeMX 头文件的层
 
 ## 1.4 需要补齐的架构能力
@@ -149,7 +151,8 @@ RoboMaster 强队的电控体系具有以下优势：
 
 典型调用链：
 
-    app → service → device/domain/infra → platform
+    app → service → device/domain/infra
+                  ↘ platform 注入 device/infra
 
 完整模式要求：
 
@@ -162,19 +165,19 @@ RoboMaster 强队的电控体系具有以下优势：
 
 计划事项：
 
-    [ ] 在通用开发流文档中增加轻量模式说明
-    [ ] 在通用开发流文档中增加完整模式说明
-    [ ] 给出轻量模式最小电机示例
-    [ ] 给出完整模式四舵轮底盘示例
+    [x] 在通用开发流文档中增加轻量模式说明
+    [x] 在通用开发流文档中增加完整模式说明
+    [x] 给出轻量模式最小电机示例
+    [x] 给出完整模式四舵轮底盘示例
 
-### 1.4.2 service 层瘦身规则
+### 1.4.2 service 层约束规则
 
 service 层是当前架构中最容易膨胀的一层，需要明确边界
 
 service 允许：
 
     组合 device/domain/infra
-    完成 PortOps 绑定
+    完成 device PortOps 绑定
     维护系统状态缓存
     实现周期 update
     实现 timeout/fault/stop/brake
@@ -192,10 +195,10 @@ service 不允许：
 
 计划事项：
 
-    [ ] 在通用开发流文档中增加 service 层瘦身规则
-    [ ] 为 chassis_service 写出正例和反例
-    [ ] 为 motor_service 写出正例和反例
-    [ ] 为 communication_service 写出正例和反例
+    [x] 在通用开发流文档中增加 service 层约束规则
+    [x] 为 chassis_service 写出正例和反例
+    [x] 为 motor_service 写出正例和反例
+    [x] 为 communication_service 写出正例和反例
 
 ### 1.4.3 PortOps 统一规范
 
@@ -273,9 +276,9 @@ PortOps 是本标准实现平台解耦的核心机制
 计划事项：
 
     [ ] 定义 `infra/status` 或 `infra/error_code`
-    [ ] 明确状态码是否按模块独立定义，还是提供统一基础码
-    [ ] 统一 SDK 中 bool、status、error 的使用边界
-    [ ] 增加错误码到字符串的 X-Macro 示例
+    [x] 明确状态码是否按模块独立定义，还是提供统一基础码
+    [x] 统一 SDK 中 bool、status、error 的使用边界
+    [x] 增加错误码到字符串的 X-Macro 示例
 
 ### 1.4.5 safety/fault/watchdog 独立化
 
@@ -448,9 +451,9 @@ PortOps 是本标准实现平台解耦的核心机制
 计划：
 
     [ ] 恢复 plan.md
-    [ ] 补充轻量模式/完整模式
-    [ ] 补充 service 瘦身规则
-    [ ] 统一状态码和生命周期
+    [x] 补充轻量模式/完整模式
+    [x] 补充 service 约束规则
+    [x] 统一状态码和生命周期
     [ ] 补充 timeout_guard
     [ ] 补充 limiter/ramp/filter 基础模块
     [ ] 完成 single_dm_motor_reference
@@ -1286,7 +1289,7 @@ RM 自瞄/导航经验可转化为外部上位机系统接入经验
     [ ] public header 不暴露平台头文件
     [ ] 有状态码或错误返回
     [ ] 有 init 配置结构体
-    [ ] 如需平台能力，应通过 PortOps 接入
+    [ ] 如需平台能力，device/infra 应通过 PortOps 接入
     [ ] 有 stop/disable 或等价安全接口
     [ ] 有参数单位说明
     [ ] 有最小使用示例
@@ -1337,4 +1340,3 @@ RM 自瞄/导航经验可转化为外部上位机系统接入经验
     再沉淀为 examples
     再抽象为 SDK
     最后进入标准文档
-

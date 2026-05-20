@@ -49,17 +49,16 @@ src/
 **基本依赖规则**：
 
 - 下层不得依赖上层
-- app 只依赖 service 和少量 infra
-- service 可依赖 device/domain/infra，并在自身 init 中完成 device/infra 与 platform 的 PortOps 对接
-- device/infra 优先把 PortOps 合并进 init 配置，避免 register 和 init 分开调用导致漏绑定
-- domain 可依赖 infra，但不应依赖 device/platform
-- infra 应尽量无业务和芯片依赖，必要时通过 PortOps 或注册函数连接 platform
+- app 只依赖 `service/`
+- service 可依赖 `device/domain/infra/platform`，并在自身 init 中完成 platform 对 device 的注入与组装
+- device 只依赖 `infra/`，通过 PortOps 接收 service 注入的平台能力
+- domain 只依赖 `infra/`
+- infra 不依赖任何项目层；如需时间、锁、输出流等能力，应通过配置/PortOps 接收由 `service` 注入的外部能力
 - platform 是唯一允许直接包含 HAL/FSP/CMSIS/CubeMX 头文件的层
 - SDK 中所有二值语义统一使用 `bool` / `true` / `false`，并包含 `<stdbool.h>`；不要用 `uint8_t`、`int` 或 `0/1` 表示布尔状态
 
 **另外**：
-- service 负责 device/infra 与 platform 之间的对接，并完成系统能力的组合、缓存和安全策略
-- 如需提升性能或确定设备无法复用，则允许 device 直接依赖 platform，但应限制在内部实现，不暴露给上层
+- service 负责把 platform 能力注入 device，并完成系统能力的组合、缓存和安全策略
 
 ---
 
@@ -225,6 +224,7 @@ git commit -m "chore(submodule): add stm32 hal chip sdk"
 ```text
 sdks/infra/
 ├── delay.c / delay.h
+├── status.h
 ├── matrix.c / matrix.h
 ├── pid.c / pid.h
 ├── protocol_parser.c / protocol_parser.h
@@ -257,6 +257,8 @@ sdks/device/
 ```
 
 设备 SDK 必须通过 PortOps/注册函数与平台层对接，不应在 public header 中直接暴露 `stm32xxx_hal.h`、`hal_data.h` 等芯片头文件
+
+`sdks/infra/status.h` 提供统一基础状态码、生命周期状态和字符串辅助，供新的 `device/service/infra` 模块优先复用
 
 ---
 
