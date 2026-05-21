@@ -4,7 +4,7 @@
 #include <string.h>
 #include <stdbool.h>
 
-#include "infra/matrix.h"
+#include "matrix.h"
 
 // ! ========================= 变 量 声 明 ========================= ! //
 

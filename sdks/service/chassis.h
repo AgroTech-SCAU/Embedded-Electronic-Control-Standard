@@ -1,8 +1,8 @@
 #ifndef _CHASSIS_H_
 #define _CHASSIS_H_
 
-#include "device/bus_motor/agv_motor.h" // IWYU pragma: keep
-#include "domain/steer_wheel_kine.h"
+#include "bus_motor/agv_motor.h" // IWYU pragma: keep
+#include "steer_wheel_kine.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -58,6 +58,16 @@ typedef enum {
 #undef X
 
 /**
+ * @brief 转向电机目标角生成模式
+ * @param CHASSIS_STEER_TARGET_ABS_NEAREST 选择距离当前位置最近的绝对角等效解
+ * @param CHASSIS_STEER_TARGET_WRAP_PI 强制最终目标角限制在
+ */
+typedef enum {
+    CHASSIS_STEER_TARGET_ABS_NEAREST = 0,
+    CHASSIS_STEER_TARGET_WRAP_PI
+} ChassisSteerTargetMode;
+
+/**
  * @brief 底盘舵轮模块枚举
  */
 #define X(name, index, steer_id, drive_id) CHASSIS_MODULE_##name = (index),
@@ -76,6 +86,7 @@ typedef enum {
  * @param prepare_steer_motor 转向电机上电准备回调函数
  * @param model 舵轮底盘几何模型参数
  * @param wheel_drive_ratio 轮速到驱动电机速度的传动比
+ * @param steer_target_mode 转向电机目标角生成模式
  */
 typedef struct {
     const BusMotorInterface* steer_motor_interface;
@@ -86,6 +97,7 @@ typedef struct {
     BusMotorStatus(*prepare_drive_motor)(uint16_t id);
     SteerWheelModel model;
     float wheel_drive_ratio;
+    ChassisSteerTargetMode steer_target_mode;
 } ChassisConfig;
 
 /**

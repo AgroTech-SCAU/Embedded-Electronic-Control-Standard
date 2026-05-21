@@ -11,7 +11,6 @@
 #define SW_2PI (2.0f * SW_PI)
 #define SW_HALF_PI (0.5f * SW_PI)
 #define SW_EPS 1e-6f
-#define SW_OPTIMIZE_HYSTERESIS_RAD 0.08f
 
 /**
  * @brief 舵轮运动学入口单例定义表
@@ -30,10 +29,8 @@ const struct SteerWheelInterface steer_wheel_interface = {
 
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
 
-static float sw_absf(float x);
-static float sw_wrap_pi(float angle);
 static void sw_get_wheel_pos(const SteerWheelModel* model, float x[4], float y[4]);
-static void sw_optimize_module(float* target_angle, float* target_speed, float current_angle);
+static float sw_wrap_pi(float angle);
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
@@ -135,16 +132,14 @@ SteelWheelErrorCode steer_wheel_ik(SteerWheel* steer_wheel) {
 
         if(target_linear_speed < SW_EPS) {
             target_linear_speed = 0.0f;
-            target_steer_angle = steer_wheel->state.cur_wheels[i].steer_angle;
+            target_steer_angle = sw_wrap_pi(steer_wheel->state.cur_wheels[i].steer_angle);
         }
         else target_steer_angle = atan2f(viy, vix);
-
-        sw_optimize_module(&target_steer_angle, &target_linear_speed, steer_wheel->state.cur_wheels[i].steer_angle);
 
         steer_wheel->control.wheels[i].wheel_omega = target_linear_speed / steer_wheel->model.wheel_radius;
         steer_wheel->control.wheels[i].steer_angle = target_steer_angle;
 
-        if(sw_absf(target_linear_speed) > max_abs_linear_speed) max_abs_linear_speed = sw_absf(target_linear_speed);
+        if(fabsf(target_linear_speed) > max_abs_linear_speed) max_abs_linear_speed = fabsf(target_linear_speed);
     }
 
     if(steer_wheel->model.max_wheel_linear_speed > SW_EPS && max_abs_linear_speed > steer_wheel->model.max_wheel_linear_speed) {
@@ -173,12 +168,20 @@ const char* steer_wheel_error_code_to_str(SteelWheelErrorCode status) {
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
 
 /**
- * @brief 计算 float 绝对值
- * @param x 输入值
- * @return float 绝对值
+ * @brief 根据底盘模型计算四个轮模块相对底盘中心的位置
+ * @param model 底盘模型参数
+ * @param x 输出四个轮模块 x 坐标，单位 m，顺序为 FL、FR、RR、RL
+ * @param y 输出四个轮模块 y 坐标，单位 m，顺序为 FL、FR、RR、RL
  */
-static float sw_absf(float x) {
-    return (x >= 0.0f) ? x : -x;
+static void sw_get_wheel_pos(const SteerWheelModel* model, float x[4], float y[4]) {
+    const float hx = model->length * 0.5f;
+    const float hy = model->width * 0.5f;
+
+    /* 约定顺序: FL, FR, RR, RL */
+    x[0] = hx;  y[0] = -hy;
+    x[1] = hx;  y[1] = hy;
+    x[2] = -hx;  y[2] = hy;
+    x[3] = -hx;  y[3] = -hy;
 }
 
 /**
@@ -194,36 +197,4 @@ static float sw_wrap_pi(float angle) {
         angle += SW_2PI;
     }
     return angle;
-}
-
-/**
- * @brief 根据底盘模型计算四个轮模块相对底盘中心的位置
- * @param model 底盘模型参数
- * @param x 输出四个轮模块 x 坐标，单位 m，顺序为 FL、FR、RL、RR
- * @param y 输出四个轮模块 y 坐标，单位 m，顺序为 FL、FR、RL、RR
- */
-static void sw_get_wheel_pos(const SteerWheelModel* model, float x[4], float y[4]) {
-    const float hx = model->length * 0.5f;
-    const float hy = model->width * 0.5f;
-
-    /* 约定顺序: FL, FR, RR, RL */
-    x[0] = hx;  y[0] = -hy;
-    x[1] = hx;  y[1] = hy;
-    x[2] = -hx;  y[2] = hy;
-    x[3] = -hx;  y[3] = -hy;
-}
-
-/**
- * @brief 优化单个舵轮目标角和目标速度，避免舵向旋转超过 90 度
- * @param target_angle 目标舵向角输入输出，单位 rad
- * @param target_speed 目标轮线速度输入输出，单位 m/s
- * @param current_angle 当前舵向角，单位 rad
- */
-static void sw_optimize_module(float* target_angle, float* target_speed, float current_angle) {
-    float err = sw_wrap_pi(*target_angle - current_angle);
-
-    if(sw_absf(err) > (SW_HALF_PI + SW_OPTIMIZE_HYSTERESIS_RAD)) {
-        *target_angle = sw_wrap_pi(*target_angle + SW_PI);
-        *target_speed = -*target_speed;
-    }
 }

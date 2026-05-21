@@ -36,7 +36,7 @@ typedef enum {
 /**
  * @brief 单个舵轮模块输出或反馈
  * @param wheel_omega 车轮角速度，单位 rad/s
- * @param steer_angle 舵向角，单位 rad
+ * @param steer_angle 舵向角，单位 rad，范围 (-pi, pi]
  */
 typedef struct {
     float wheel_omega;
@@ -59,7 +59,7 @@ typedef struct {
 
 /**
  * @brief 舵轮底盘控制输入和 IK 输出
- * @param wheels 四个舵轮目标输出，顺序为 FL、FR、RL、RR
+ * @param wheels 四个舵轮目标输出，顺序为 FL、FR、RR、RL
  * @param vx 底盘目标 x 方向线速度，单位 m/s
  * @param vy 底盘目标 y 方向线速度，单位 m/s
  * @param wz 底盘目标 z 轴角速度，单位 rad/s
@@ -73,7 +73,7 @@ typedef struct {
 
 /**
  * @brief 舵轮底盘反馈状态和 FK 输出
- * @param cur_wheels 四个舵轮当前反馈，顺序为 FL、FR、RL、RR
+ * @param cur_wheels 四个舵轮当前反馈，顺序为 FL、FR、RR、RL
  * @param cur_vx 底盘当前 x 方向线速度，单位 m/s
  * @param cur_vy 底盘当前 y 方向线速度，单位 m/s
  * @param cur_wz 底盘当前 z 轴角速度，单位 rad/s

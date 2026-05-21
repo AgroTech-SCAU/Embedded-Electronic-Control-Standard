@@ -135,13 +135,41 @@
  *
  * 每个模块包含一个转向电机和一个驱动电机；
  * drive_sign 用于修正驱动电机安装方向
+ *
+ * @param module 舵轮模块枚举
+ * @param steer_id 转向电机 CAN ID
+ * @param drive_id 驱动电机 CAN ID
+ * @param drive_sign 驱动电机安装方向修正符号，取值为 1 或 -1
  */
 typedef struct {
-    ChassisModule module; /**< 舵轮模块逻辑编号 */
-    uint8_t steer_id;     /**< 转向电机 CAN ID */
-    uint8_t drive_id;     /**< 驱动电机 CAN ID */
-    int8_t drive_sign;    /**< 驱动电机安装方向修正符号，取值为 1 或 -1 */
+    ChassisModule module;
+    uint8_t steer_id;
+    uint8_t drive_id;
+    int8_t drive_sign;
 } ChassisModuleMap;
+
+/**
+ * @brief 单个舵轮模块最终下发的硬件命令
+ *
+ * steer_target_abs_angle 为转向电机位置模式绝对目标角；
+ * wheel_omega 为已经完成等效优化后的最终车轮角速度
+ */
+typedef struct {
+    float steer_target_abs_angle;
+    float wheel_omega;
+    uint8_t drive_inverted;
+} ChassisModuleCommand;
+
+/**
+ * @brief 单个舵轮模块的硬件反馈缓存
+ *
+ * steer_abs_angle 为转向电机位置反馈绝对角；
+ * drive_omega 为修正安装方向后的驱动电机角速度
+ */
+typedef struct {
+    float steer_abs_angle;
+    float drive_omega;
+} ChassisModuleFeedback;
 
 /**
  * @brief 底盘服务内部可变运行实例
@@ -178,6 +206,27 @@ static float s_steer_speed_last_target[CHASSIS_MODULE_COUNT] = { 0.0f };
  * 后续才可根据目标变化计算 S 曲线
  */
 static uint8_t s_steer_speed_initialized[CHASSIS_MODULE_COUNT] = { 0u };
+/**
+ * @brief 每个舵轮模块最终下发的硬件命令缓存
+ *
+ * 该缓存保存转向电机绝对位置目标和最终驱动方向；
+ * 与运动学输出解耦，避免覆盖理论舵向角
+ */
+static ChassisModuleCommand s_module_cmd[CHASSIS_MODULE_COUNT] = { 0 };
+/**
+ * @brief 每个舵轮模块的硬件反馈缓存
+ *
+ * 该缓存保存电机层绝对位置反馈；
+ * 运动学状态只保存归一化后的舵向角
+ */
+static ChassisModuleFeedback s_module_fb[CHASSIS_MODULE_COUNT] = { 0 };
+/**
+ * @brief 每个舵轮上一次选择的驱动反向状态
+ *
+ * 用于在等效解切换时引入滞回；
+ * 避免目标角接近临界值时来回翻转
+ */
+static uint8_t s_last_drive_inverted[CHASSIS_MODULE_COUNT] = { 0u };
 /**
  * @brief 转向电机上电准备重试倒计时
  *
@@ -332,19 +381,6 @@ static void chassis_external_to_internal_twist(float vx_ext, float vy_ext, float
 static void chassis_internal_to_external_twist(float vx_int, float vy_int, float wz_int, float* vx_ext, float* vy_ext, float* wz_ext);
 
 /**
- * @brief 将浮点数限制在闭区间内
- *
- * 该工具函数用于限幅角度和归一化参数；
- * 若输入超出边界则返回对应边界值
- *
- * @param value 输入值
- * @param min 下边界
- * @param max 上边界
- * @return float 限幅后的结果
- */
-static float chassis_clampf(float value, float min, float max);
-
-/**
  * @brief 将角度归一化到 [-pi, pi] 区间
  *
  * 单位为 rad；
@@ -367,39 +403,37 @@ static float chassis_wrap_pi(float angle);
 static float chassis_smoothstep(float x);
 
 /**
- * @brief 选择距离当前角最近的周期等效目标角
+ * @brief 选择距离当前电机位置最近的同舵向绝对目标角
  *
- * 转向电机角度可以跨越多个 2pi 周期；
- * 该函数选择无需绕远路的等效角
+ * 输入 target_angle 表示理论舵向角；
+ * 输出为位置边界内的等效绝对目标角
  *
- * @param current_angle 当前转向角，单位 rad
- * @param target_angle 期望转向角，单位 rad
- * @return float 最近的周期等效目标角
+ * @param current_angle 当前转向电机绝对位置角，单位 rad
+ * @param target_angle 理论舵向角，单位 rad
+ * @return float 最近的同舵向绝对目标角
  */
-static float chassis_select_nearest_cyclic_angle(float current_angle, float target_angle);
+static float chassis_select_nearest_heading_angle(float current_angle, float target_angle);
 
 /**
- * @brief 带滞回地选择最近等效转向目标角
+ * @brief 解析单个舵轮模块驻车刹车目标
  *
- * 函数会在直接角和反向驱动等效角之间选择；
- * 滞回用于避免临界点附近反复切换
+ * 驻车刹车只关心轮子滚动轴线；
+ * target_angle 与 target_angle + pi 均视为等效目标
  *
- * @param current_angle 当前转向角，单位 rad
- * @param target_angle 期望转向角，单位 rad
- * @param previous_target_angle 上一次规划的目标角，单位 rad
- * @return float 本周期选定的等效目标角
+ * @param module 需要解析的舵轮模块
+ * @param target_angle 驻车刹车理论舵向角，单位 rad
  */
-static float chassis_select_nearest_equivalent_angle(float current_angle, float target_angle, float previous_target_angle);
+static void chassis_resolve_brake_module_command(ChassisModule module, float target_angle);
 
 /**
- * @brief 结合驱动方向反转优化单个舵轮目标
+ * @brief 解析单个舵轮模块最终硬件命令
  *
- * 当前进/后退反向能显著减少转向角时；
- * 函数会翻转轮速并选择更近的转向目标
+ * 函数根据理论舵向角和当前位置选择最近的电机绝对目标角；
+ * 必要时会切换到等效反向驱动解并翻转车轮角速度
  *
- * @param module 需要优化的舵轮模块
+ * @param module 需要解析的舵轮模块
  */
-static void chassis_optimize_drive_module_target(ChassisModule module);
+static void chassis_resolve_drive_module_command(ChassisModule module);
 
 /**
  * @brief 重置所有转向速度 S 曲线规划状态
@@ -528,6 +562,14 @@ ChassisErrorCode chassis_init(const ChassisConfig* config) {
     s_last_drive_missing_mask = 0xFFu;
     s_chassis.steer_motor_ready = 0u;
     s_chassis.drive_motor_ready = 0u;
+    for(uint8_t i = 0u; i < CHASSIS_MODULE_COUNT; ++i) {
+        s_module_cmd[i].steer_target_abs_angle = 0.0f;
+        s_module_cmd[i].wheel_omega = 0.0f;
+        s_module_cmd[i].drive_inverted = 0u;
+        s_module_fb[i].steer_abs_angle = 0.0f;
+        s_module_fb[i].drive_omega = 0.0f;
+        s_last_drive_inverted[i] = 0u;
+    }
 
     if(steer_motor.init(&steer_config) != MOTOR_STATUS_OK) {
         log_error("CHASSIS steer motor device init failed");
@@ -629,11 +671,13 @@ ChassisErrorCode chassis_process(void) {
 
     for(i = 0u; i < CHASSIS_MODULE_COUNT; ++i) {
         const ChassisModuleMap* map = &s_module_map[i];
+        float drive_omega = (float)map->drive_sign * drive_motor.get_spd(map->drive_id);
+        float steer_abs_angle = steer_motor.get_pos(map->steer_id);
 
-        s_chassis.kine.state.cur_wheels[map->module].wheel_omega =
-            chassis_drive_omega_to_wheel_omega((float)map->drive_sign * drive_motor.get_spd(map->drive_id));
-        s_chassis.kine.state.cur_wheels[map->module].steer_angle =
-            steer_motor.get_pos(map->steer_id);
+        s_module_fb[map->module].drive_omega = drive_omega;
+        s_module_fb[map->module].steer_abs_angle = steer_abs_angle;
+        s_chassis.kine.state.cur_wheels[map->module].wheel_omega = chassis_drive_omega_to_wheel_omega(drive_omega);
+        s_chassis.kine.state.cur_wheels[map->module].steer_angle = chassis_wrap_pi(steer_abs_angle);
     }
 
     if(s_chassis.brake_requested != 0u) {
@@ -642,7 +686,7 @@ ChassisErrorCode chassis_process(void) {
         if(s_chassis.brake_latched == 0u) {
             for(i = 0u; i < CHASSIS_MODULE_COUNT; ++i) {
                 const ChassisModuleMap* map = &s_module_map[i];
-                float target_angle = s_chassis.kine.control.wheels[map->module].steer_angle;
+                float target_angle = s_module_cmd[map->module].steer_target_abs_angle;
                 float steer_speed = chassis_calc_steer_track_speed(map->module, target_angle);
 
                 (void)drive_motor.stop(map->drive_id);
@@ -680,15 +724,15 @@ ChassisErrorCode chassis_process(void) {
         for(i = 0u; i < CHASSIS_MODULE_COUNT; ++i) {
             const ChassisModuleMap* map = &s_module_map[i];
 
-            chassis_optimize_drive_module_target(map->module);
+            chassis_resolve_drive_module_command(map->module);
         }
 
         drive_ready = (s_chassis.steer_then_drive_enabled == 0u) || chassis_drive_targets_reached();
 
         for(i = 0u; i < CHASSIS_MODULE_COUNT; ++i) {
             const ChassisModuleMap* map = &s_module_map[i];
-            float target_angle = s_chassis.kine.control.wheels[map->module].steer_angle;
-            float target_speed = chassis_wheel_omega_to_drive_omega(s_chassis.kine.control.wheels[map->module].wheel_omega);
+            float target_angle = s_module_cmd[map->module].steer_target_abs_angle;
+            float target_speed = chassis_wheel_omega_to_drive_omega(s_module_cmd[map->module].wheel_omega);
             float steer_speed = chassis_calc_steer_track_speed(map->module, target_angle);
 
             (void)steer_motor.set_pos_vel(map->steer_id, target_angle, steer_speed);
@@ -829,6 +873,10 @@ static ChassisErrorCode chassis_check_config(const ChassisConfig* config) {
         || config->wheel_drive_ratio <= 0.0f) {
         return ch.INVALID_MODEL;
     }
+    if(config->steer_target_mode != CHASSIS_STEER_TARGET_ABS_NEAREST
+        && config->steer_target_mode != CHASSIS_STEER_TARGET_WRAP_PI) {
+        return ch.INVALID_PARAM;
+    }
 
     return ch.OK;
 }
@@ -959,17 +1007,6 @@ static void chassis_internal_to_external_twist(float vx_int, float vy_int, float
     if(wz_ext != NULL) *wz_ext = -wz_int;
 }
 
-static float chassis_clampf(float value, float min, float max) {
-    if(value < min) {
-        return min;
-    }
-    if(value > max) {
-        return max;
-    }
-
-    return value;
-}
-
 static float chassis_wrap_pi(float angle) {
     while(angle > CHASSIS_PI) {
         angle -= CHASSIS_2PI;
@@ -981,27 +1018,25 @@ static float chassis_wrap_pi(float angle) {
     return angle;
 }
 
-static float chassis_select_nearest_cyclic_angle(float current_angle, float target_angle) {
-    float best_target = target_angle;
-    float best_error = fabsf(target_angle - current_angle);
-    int8_t k;
+static float chassis_select_nearest_heading_angle(float current_angle, float target_angle) {
+    float nearest_target;
 
-    for(k = -2; k <= 2; ++k) {
-        float candidate = target_angle + (float)k * CHASSIS_2PI;
-        float error;
+    target_angle = chassis_wrap_pi(target_angle);
 
-        if(candidate < -CHASSIS_STEER_POS_LIMIT_RAD || candidate > CHASSIS_STEER_POS_LIMIT_RAD) {
-            continue;
-        }
-
-        error = fabsf(candidate - current_angle);
-        if(error < best_error) {
-            best_error = error;
-            best_target = candidate;
-        }
+    if(s_chassis.config.steer_target_mode == CHASSIS_STEER_TARGET_WRAP_PI) {
+        return target_angle;
     }
 
-    return chassis_clampf(best_target, -CHASSIS_STEER_POS_LIMIT_RAD, CHASSIS_STEER_POS_LIMIT_RAD);
+    nearest_target = current_angle + chassis_wrap_pi(target_angle - current_angle);
+
+    while(nearest_target > CHASSIS_STEER_POS_LIMIT_RAD) {
+        nearest_target -= CHASSIS_2PI;
+    }
+    while(nearest_target < -CHASSIS_STEER_POS_LIMIT_RAD) {
+        nearest_target += CHASSIS_2PI;
+    }
+
+    return nearest_target;
 }
 
 static float chassis_smoothstep(float x) {
@@ -1015,29 +1050,47 @@ static float chassis_smoothstep(float x) {
     return x * x * (3.0f - 2.0f * x);
 }
 
-static float chassis_select_nearest_equivalent_angle(float current_angle, float target_angle, float previous_target_angle) {
-    float option_a = chassis_select_nearest_cyclic_angle(current_angle, target_angle);
-    float option_b = chassis_select_nearest_cyclic_angle(current_angle, target_angle + CHASSIS_PI);
-    float option_prev = chassis_select_nearest_cyclic_angle(current_angle, previous_target_angle);
-    float error_a = option_a - current_angle;
-    float error_b = option_b - current_angle;
-    float error_prev = option_prev - current_angle;
-    float prev_equiv_error_a = fabsf(chassis_wrap_pi(option_prev - option_a));
-    float prev_equiv_error_b = fabsf(chassis_wrap_pi(option_prev - option_b));
+static void chassis_resolve_brake_module_command(ChassisModule module, float target_angle) {
+    float current_angle;
+    float option_a;
+    float option_b;
+    float option_prev;
+    float error_a;
+    float error_b;
+    float error_prev;
+    float prev_equiv_error_a;
+    float prev_equiv_error_b;
+
+    if(module >= CHASSIS_MODULE_COUNT) {
+        return;
+    }
+
+    current_angle = s_module_fb[module].steer_abs_angle;
+    option_a = chassis_select_nearest_heading_angle(current_angle, target_angle);
+    option_b = chassis_select_nearest_heading_angle(current_angle, target_angle + CHASSIS_PI);
+    option_prev = s_module_cmd[module].steer_target_abs_angle;
+    error_a = option_a - current_angle;
+    error_b = option_b - current_angle;
+    error_prev = option_prev - current_angle;
+    prev_equiv_error_a = fabsf(option_prev - option_a);
+    prev_equiv_error_b = fabsf(option_prev - option_b);
 
     if((prev_equiv_error_a < CHASSIS_DRIVE_ANGLE_TOL_RAD || prev_equiv_error_b < CHASSIS_DRIVE_ANGLE_TOL_RAD)
         && fabsf(error_prev) <= (fminf(fabsf(error_a), fabsf(error_b)) + CHASSIS_EQUIV_ANGLE_HYST_RAD)) {
-        return option_prev;
+        s_module_cmd[module].steer_target_abs_angle = option_prev;
+    }
+    else if(fabsf(error_b) < fabsf(error_a)) {
+        s_module_cmd[module].steer_target_abs_angle = option_b;
+    }
+    else {
+        s_module_cmd[module].steer_target_abs_angle = option_a;
     }
 
-    if(fabsf(error_b) < fabsf(error_a)) {
-        return option_b;
-    }
-
-    return option_a;
+    s_module_cmd[module].wheel_omega = 0.0f;
+    s_module_cmd[module].drive_inverted = 0u;
 }
 
-static void chassis_optimize_drive_module_target(ChassisModule module) {
+static void chassis_resolve_drive_module_command(ChassisModule module) {
     float current_angle;
     float target_angle;
     float target_omega;
@@ -1050,21 +1103,35 @@ static void chassis_optimize_drive_module_target(ChassisModule module) {
         return;
     }
 
-    current_angle = s_chassis.kine.state.cur_wheels[module].steer_angle;
+    current_angle = s_module_fb[module].steer_abs_angle;
     target_angle = s_chassis.kine.control.wheels[module].steer_angle;
     target_omega = s_chassis.kine.control.wheels[module].wheel_omega;
 
-    option_a = chassis_select_nearest_cyclic_angle(current_angle, target_angle);
-    option_b = chassis_select_nearest_cyclic_angle(current_angle, target_angle + CHASSIS_PI);
+    option_a = chassis_select_nearest_heading_angle(current_angle, target_angle);
+    option_b = chassis_select_nearest_heading_angle(current_angle, target_angle + CHASSIS_PI);
     error_a = option_a - current_angle;
     error_b = option_b - current_angle;
 
-    if(fabsf(error_b) + CHASSIS_DRIVE_EQUIV_HYST_RAD < fabsf(error_a)) {
-        s_chassis.kine.control.wheels[module].steer_angle = option_b;
-        s_chassis.kine.control.wheels[module].wheel_omega = -target_omega;
+    if(s_last_drive_inverted[module] != 0u) {
+        if(fabsf(error_a) + CHASSIS_DRIVE_EQUIV_HYST_RAD < fabsf(error_b)) {
+            s_last_drive_inverted[module] = 0u;
+        }
     }
     else {
-        s_chassis.kine.control.wheels[module].steer_angle = option_a;
+        if(fabsf(error_b) + CHASSIS_DRIVE_EQUIV_HYST_RAD < fabsf(error_a)) {
+            s_last_drive_inverted[module] = 1u;
+        }
+    }
+
+    if(s_last_drive_inverted[module] != 0u) {
+        s_module_cmd[module].steer_target_abs_angle = option_b;
+        s_module_cmd[module].wheel_omega = -target_omega;
+        s_module_cmd[module].drive_inverted = 1u;
+    }
+    else {
+        s_module_cmd[module].steer_target_abs_angle = option_a;
+        s_module_cmd[module].wheel_omega = target_omega;
+        s_module_cmd[module].drive_inverted = 0u;
     }
 }
 
@@ -1090,8 +1157,8 @@ static float chassis_calc_steer_track_speed(ChassisModule module, float target_a
         return CHASSIS_STEER_TRACK_MAX_SPEED_RAD_S;
     }
 
-    current_angle = s_chassis.kine.state.cur_wheels[module].steer_angle;
-    angle_error = fabsf(chassis_wrap_pi(target_angle - current_angle));
+    current_angle = s_module_fb[module].steer_abs_angle;
+    angle_error = fabsf(target_angle - current_angle);
 
     if(angle_error <= CHASSIS_DRIVE_ANGLE_TOL_RAD) {
         s_steer_speed_ramp_time[module] = 0.0f;
@@ -1100,7 +1167,7 @@ static float chassis_calc_steer_track_speed(ChassisModule module, float target_a
         return CHASSIS_STEER_TRACK_MIN_SPEED_RAD_S;
     }
 
-    target_delta = chassis_wrap_pi(target_angle - s_steer_speed_last_target[module]);
+    target_delta = target_angle - s_steer_speed_last_target[module];
     if(s_steer_speed_initialized[module] == 0u || fabsf(target_delta) > CHASSIS_STEER_TARGET_CHANGE_RAD) {
         s_steer_speed_ramp_time[module] = 0.0f;
         s_steer_speed_last_target[module] = target_angle;
@@ -1123,9 +1190,9 @@ static bool chassis_drive_targets_reached(void) {
     uint8_t i;
 
     for(i = 0u; i < CHASSIS_MODULE_COUNT; ++i) {
-        float current_angle = s_chassis.kine.state.cur_wheels[i].steer_angle;
-        float target_angle = s_chassis.kine.control.wheels[i].steer_angle;
-        float angle_error = chassis_wrap_pi(target_angle - current_angle);
+        float current_angle = s_module_fb[i].steer_abs_angle;
+        float target_angle = s_module_cmd[i].steer_target_abs_angle;
+        float angle_error = target_angle - current_angle;
 
         if(fabsf(angle_error) > CHASSIS_DRIVE_ANGLE_TOL_RAD) {
             return false;
@@ -1148,31 +1215,24 @@ static void chassis_set_brake_targets(void) {
     s_chassis.kine.control.wheels[CHASSIS_MODULE_RR].wheel_omega = 0.0f;
     s_chassis.kine.control.wheels[CHASSIS_MODULE_RL].wheel_omega = 0.0f;
 
-    s_chassis.kine.control.wheels[CHASSIS_MODULE_FL].steer_angle =
-        chassis_select_nearest_equivalent_angle(s_chassis.kine.state.cur_wheels[CHASSIS_MODULE_FL].steer_angle,
-            target_fl,
-            s_chassis.kine.control.wheels[CHASSIS_MODULE_FL].steer_angle);
-    s_chassis.kine.control.wheels[CHASSIS_MODULE_FR].steer_angle =
-        chassis_select_nearest_equivalent_angle(s_chassis.kine.state.cur_wheels[CHASSIS_MODULE_FR].steer_angle,
-            target_fr,
-            s_chassis.kine.control.wheels[CHASSIS_MODULE_FR].steer_angle);
-    s_chassis.kine.control.wheels[CHASSIS_MODULE_RR].steer_angle =
-        chassis_select_nearest_equivalent_angle(s_chassis.kine.state.cur_wheels[CHASSIS_MODULE_RR].steer_angle,
-            target_rr,
-            s_chassis.kine.control.wheels[CHASSIS_MODULE_RR].steer_angle);
-    s_chassis.kine.control.wheels[CHASSIS_MODULE_RL].steer_angle =
-        chassis_select_nearest_equivalent_angle(s_chassis.kine.state.cur_wheels[CHASSIS_MODULE_RL].steer_angle,
-            target_rl,
-            s_chassis.kine.control.wheels[CHASSIS_MODULE_RL].steer_angle);
+    s_chassis.kine.control.wheels[CHASSIS_MODULE_FL].steer_angle = target_fl;
+    s_chassis.kine.control.wheels[CHASSIS_MODULE_FR].steer_angle = target_fr;
+    s_chassis.kine.control.wheels[CHASSIS_MODULE_RR].steer_angle = target_rr;
+    s_chassis.kine.control.wheels[CHASSIS_MODULE_RL].steer_angle = target_rl;
+
+    chassis_resolve_brake_module_command(CHASSIS_MODULE_FL, target_fl);
+    chassis_resolve_brake_module_command(CHASSIS_MODULE_FR, target_fr);
+    chassis_resolve_brake_module_command(CHASSIS_MODULE_RR, target_rr);
+    chassis_resolve_brake_module_command(CHASSIS_MODULE_RL, target_rl);
 }
 
 static bool chassis_brake_targets_reached(void) {
     uint8_t i;
 
     for(i = 0u; i < CHASSIS_MODULE_COUNT; ++i) {
-        float current_angle = s_chassis.kine.state.cur_wheels[i].steer_angle;
-        float target_angle = s_chassis.kine.control.wheels[i].steer_angle;
-        float angle_error = chassis_wrap_pi(target_angle - current_angle);
+        float current_angle = s_module_fb[i].steer_abs_angle;
+        float target_angle = s_module_cmd[i].steer_target_abs_angle;
+        float angle_error = target_angle - current_angle;
 
         if(fabsf(angle_error) > CHASSIS_BRAKE_ANGLE_TOL_RAD) {
             return false;
