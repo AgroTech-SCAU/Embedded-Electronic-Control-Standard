@@ -380,7 +380,12 @@ static ImuAttitudeStatus imu_attitude_calibrate_gyro(ImuAttitude* attitude, cons
         attitude->calibrated = 1U;
 
         if((sample->flags & IMU_SAMPLE_ACC_VALID) != 0U) {
-            imu_attitude_init_angle_by_acc(attitude, &sample->acc);
+            if(attitude->has_angle == 0U) {
+                imu_attitude_init_angle_by_acc(attitude, &sample->acc);
+            }
+            else {
+                imu_attitude_refresh_angle_by_acc(attitude, &sample->acc);
+            }
         }
 
         return IMU_ATTITUDE_STATUS_CALIBRATING;
@@ -439,7 +444,12 @@ static ImuAttitudeStatus imu_attitude_calibrate_gyro(ImuAttitude* attitude, cons
     attitude->last_update_us = sample->gyro_timestamp_us;
 
     if((sample->flags & IMU_SAMPLE_ACC_VALID) != 0U) {
-        imu_attitude_init_angle_by_acc(attitude, &sample->acc);
+        if(attitude->has_angle == 0U) {
+            imu_attitude_init_angle_by_acc(attitude, &sample->acc);
+        }
+        else {
+            imu_attitude_refresh_angle_by_acc(attitude, &sample->acc);
+        }
     }
     else {
         imu_attitude_quat_from_angle(&attitude->quat, &attitude->angle);

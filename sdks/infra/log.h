@@ -68,7 +68,7 @@
  * @brief 如果编译器支持 C11 标准，则此处定义为 true 以启用 log_vofa(...) 宏，否则改为 false
  */
 #ifndef LOG_USE_C11
-#define LOG_USE_C11 false
+#define LOG_USE_C11 true
 #endif
 
 /**

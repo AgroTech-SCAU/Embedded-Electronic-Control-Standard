@@ -1,6 +1,7 @@
 #include "bmi088.h"
 #include "imu_attitude.h"
 
+#include <math.h>
 #include <stdbool.h>
 #include <string.h>
 
@@ -22,6 +23,10 @@
 #define BMI088_DMA_ACCEL_FRAME_LEN          8U
 #define BMI088_SPI_DUMMY_BYTE               0x55U
 #define BMI088_TEMP_UPDATE_PERIOD_US        100000U
+#define BMI088_GYRO_STALE_TIMEOUT_US        10000U
+#define BMI088_ACCEL_STALE_TIMEOUT_US       10000U
+#define BMI088_ACCEL_NORM_MIN_MPS2          3.0f
+#define BMI088_ACCEL_NORM_MAX_MPS2          20.0f
 
 #define BMI088_ACC_CHIP_ID                  0x00U
 #define BMI088_ACC_CHIP_ID_VALUE            0x1EU
@@ -139,6 +144,8 @@ static void bmi088_dma_prepare_txrx(uint16_t len);
 static void bmi088_dma_maintain_before_start(uint16_t len);
 static void bmi088_dma_maintain_after_finish(uint16_t len);
 static void bmi088_update_temp_cache(uint32_t now_us, uint8_t* sample_flags);
+static float bmi088_acc_norm(const float acc[3]);
+static bool bmi088_acc_sample_is_reasonable(const float acc[3]);
 
 static ImuAcc bmi088_make_acc(const float acc[3]);
 static ImuGyro bmi088_make_gyro(const float gyro[3]);
@@ -391,11 +398,13 @@ static ImuStatus bmi088_update(void) {
     }
 
     if(bmi088_async_get_accel(raw_acc)) {
-        s_bmi088_acc = bmi088_make_acc(raw_acc);
-        s_bmi088_sample.acc = s_bmi088_acc;
-        s_bmi088_sample.acc_timestamp_us = now_us;
-        sample_flags |= IMU_SAMPLE_ACC_NEW | IMU_SAMPLE_ACC_VALID;
-        updated = true;
+        if(bmi088_acc_sample_is_reasonable(raw_acc)) {
+            s_bmi088_acc = bmi088_make_acc(raw_acc);
+            s_bmi088_sample.acc = s_bmi088_acc;
+            s_bmi088_sample.acc_timestamp_us = now_us;
+            sample_flags |= IMU_SAMPLE_ACC_NEW | IMU_SAMPLE_ACC_VALID;
+            updated = true;
+        }
     }
 
     bmi088_update_temp_cache(now_us, &sample_flags);
@@ -425,15 +434,17 @@ static ImuStatus bmi088_blocking_update(void) {
     bmi088_read_accel_raw(raw_acc);
 
     s_bmi088_gyro = bmi088_make_gyro(raw_gyro);
-    s_bmi088_acc = bmi088_make_acc(raw_acc);
     s_bmi088_sample.gyro = s_bmi088_gyro;
-    s_bmi088_sample.acc = s_bmi088_acc;
     now_us = bmi088_now_us();
     s_bmi088_sample.gyro_timestamp_us = now_us;
-    s_bmi088_sample.acc_timestamp_us = now_us;
-    s_bmi088_sample.flags = IMU_SAMPLE_GYRO_NEW | IMU_SAMPLE_ACC_NEW |
-        IMU_SAMPLE_GYRO_VALID | IMU_SAMPLE_ACC_VALID |
+    s_bmi088_sample.flags = IMU_SAMPLE_GYRO_NEW | IMU_SAMPLE_GYRO_VALID |
         (s_bmi088_sample.flags & IMU_SAMPLE_TEMP_VALID);
+    if(bmi088_acc_sample_is_reasonable(raw_acc)) {
+        s_bmi088_acc = bmi088_make_acc(raw_acc);
+        s_bmi088_sample.acc = s_bmi088_acc;
+        s_bmi088_sample.acc_timestamp_us = now_us;
+        s_bmi088_sample.flags |= IMU_SAMPLE_ACC_NEW | IMU_SAMPLE_ACC_VALID;
+    }
     bmi088_update_temp_cache(now_us, &s_bmi088_sample.flags);
     bmi088_attitude_update();
     return IMU_STATUS_OK;
@@ -673,8 +684,8 @@ static void bmi088_read_temp_raw(float* temperature) {
 static void bmi088_async_init(void) {
     s_bmi088_dma_state = BMI088_DMA_IDLE;
     s_bmi088_async_next = BMI088_ASYNC_NEXT_GYRO;
-    s_bmi088_gyro_pending = 0U;
-    s_bmi088_accel_pending = 0U;
+    s_bmi088_gyro_pending = 1U;
+    s_bmi088_accel_pending = 1U;
     s_bmi088_gyro_ready = 0U;
     s_bmi088_accel_ready = 0U;
     memset(s_bmi088_tx, 0, sizeof(s_bmi088_tx));
@@ -702,10 +713,24 @@ static void bmi088_notify_accel_data_ready(void) {
  * @brief 轮询并启动 BMI088 DMA 读取
  */
 static bool bmi088_async_poll(void) {
+    uint32_t now_us = 0U;
     bool prefer_gyro = false;
 
     if(s_bmi088_dma_state != BMI088_DMA_IDLE) {
         return false;
+    }
+
+    now_us = bmi088_now_us();
+    if(s_bmi088_gyro_pending == 0U &&
+        (s_bmi088_sample.gyro_timestamp_us == 0U ||
+            (now_us - s_bmi088_sample.gyro_timestamp_us) > BMI088_GYRO_STALE_TIMEOUT_US)) {
+        s_bmi088_gyro_pending = 1U;
+    }
+
+    if(s_bmi088_accel_pending == 0U &&
+        (s_bmi088_sample.acc_timestamp_us == 0U ||
+            (now_us - s_bmi088_sample.acc_timestamp_us) > BMI088_ACCEL_STALE_TIMEOUT_US)) {
+        s_bmi088_accel_pending = 1U;
     }
 
     prefer_gyro = (s_bmi088_async_next == BMI088_ASYNC_NEXT_GYRO);
@@ -1191,6 +1216,21 @@ static void bmi088_update_temp_cache(uint32_t now_us, uint8_t* sample_flags) {
     s_bmi088_sample.temperature = s_bmi088_temp;
     s_bmi088_sample.temp_timestamp_us = now_us;
     *sample_flags |= IMU_SAMPLE_TEMP_NEW | IMU_SAMPLE_TEMP_VALID;
+}
+
+static float bmi088_acc_norm(const float acc[3]) {
+    if(acc == 0) {
+        return 0.0f;
+    }
+
+    return sqrtf(acc[0] * acc[0] + acc[1] * acc[1] + acc[2] * acc[2]);
+}
+
+static bool bmi088_acc_sample_is_reasonable(const float acc[3]) {
+    const float norm = bmi088_acc_norm(acc);
+
+    return norm >= BMI088_ACCEL_NORM_MIN_MPS2 &&
+        norm <= BMI088_ACCEL_NORM_MAX_MPS2;
 }
 
 /**
