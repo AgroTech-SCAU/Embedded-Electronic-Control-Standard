@@ -21,6 +21,7 @@
 #define BMI088_DMA_GYRO_FRAME_LEN           7U
 #define BMI088_DMA_ACCEL_FRAME_LEN          8U
 #define BMI088_SPI_DUMMY_BYTE               0x55U
+#define BMI088_TEMP_UPDATE_PERIOD_US        100000U
 
 #define BMI088_ACC_CHIP_ID                  0x00U
 #define BMI088_ACC_CHIP_ID_VALUE            0x1EU
@@ -137,6 +138,7 @@ static void bmi088_copy_vector3(float dst[3], const float src[3]);
 static void bmi088_dma_prepare_txrx(uint16_t len);
 static void bmi088_dma_maintain_before_start(uint16_t len);
 static void bmi088_dma_maintain_after_finish(uint16_t len);
+static void bmi088_update_temp_cache(uint32_t now_us, uint8_t* sample_flags);
 
 static ImuAcc bmi088_make_acc(const float acc[3]);
 static ImuGyro bmi088_make_gyro(const float gyro[3]);
@@ -185,7 +187,6 @@ static ImuAngle s_bmi088_angle = { 0.0f, 0.0f, 0.0f };
 static ImuSample s_bmi088_sample = { 0 };
 static ImuAttitude s_bmi088_attitude = { 0 };
 static bool s_bmi088_attitude_enabled = false;
-static bool s_bmi088_has_acc = false;
 
 static Bmi088Error s_bmi088_init_error = BMI088_ERROR_NO_ERROR;
 static float s_bmi088_temp = 0.0f;
@@ -230,9 +231,11 @@ ImuStatus bmi088_make_config(Bmi088Config* config, const Bmi088PortOps* ops, con
     config->gyro_int_pin = gyro_int_pin;
     config->attitude.mode = IMU_ATTITUDE_MAHONY_6AXIS;
     config->attitude.now_us = 0;
-    config->attitude.gyro_calib_samples = 100U;
+    config->attitude.gyro_calib_samples = 1000U;
     config->attitude.acc_norm = 9.80665f;
-    config->attitude.acc_norm_tolerance = 2.5f;
+    config->attitude.acc_norm_tolerance = 1.5f;
+    config->attitude.max_acc_age_us = 20000U;
+    config->attitude.gyro_calib_var_threshold = 0.01f;
     config->attitude.complementary_tau = 0.5f;
     config->attitude.mahony_kp = 2.0f;
     config->attitude.mahony_ki = 0.0f;
@@ -283,10 +286,6 @@ float bmi088_get_temp(void) {
         return 0.0f;
     }
 
-    bmi088_read_temp_raw(&s_bmi088_temp);
-    s_bmi088_sample.temperature = s_bmi088_temp;
-    s_bmi088_sample.timestamp_us = bmi088_now_us();
-    s_bmi088_sample.flags |= IMU_SAMPLE_TEMP_NEW;
     return s_bmi088_temp;
 }
 
@@ -354,7 +353,6 @@ static ImuStatus bmi088_init_common(const void* config, bool require_async_ops) 
     s_bmi088_gyro = (ImuGyro){ 0.0f, 0.0f, 0.0f };
     s_bmi088_angle = (ImuAngle){ 0.0f, 0.0f, 0.0f };
     s_bmi088_sample = (ImuSample){ 0 };
-    s_bmi088_has_acc = false;
     s_bmi088_temp = 0.0f;
     s_bmi088_is_initialized = (s_bmi088_init_error == BMI088_ERROR_NO_ERROR);
 
@@ -372,7 +370,9 @@ static ImuStatus bmi088_init_common(const void* config, bool require_async_ops) 
 static ImuStatus bmi088_update(void) {
     float raw_acc[3] = { 0.0f };
     float raw_gyro[3] = { 0.0f };
-    uint8_t sample_flags = IMU_SAMPLE_NONE;
+    uint8_t sample_flags = s_bmi088_sample.flags &
+        (IMU_SAMPLE_ACC_VALID | IMU_SAMPLE_GYRO_VALID | IMU_SAMPLE_TEMP_VALID);
+    uint32_t now_us = 0U;
     bool updated = false;
 
     if(!s_bmi088_is_initialized) {
@@ -380,23 +380,25 @@ static ImuStatus bmi088_update(void) {
     }
 
     (void)bmi088_async_poll();
+    now_us = bmi088_now_us();
 
     if(bmi088_async_get_gyro(raw_gyro)) {
         s_bmi088_gyro = bmi088_make_gyro(raw_gyro);
         s_bmi088_sample.gyro = s_bmi088_gyro;
-        s_bmi088_sample.timestamp_us = bmi088_now_us();
-        sample_flags |= IMU_SAMPLE_GYRO_NEW;
+        s_bmi088_sample.gyro_timestamp_us = now_us;
+        sample_flags |= IMU_SAMPLE_GYRO_NEW | IMU_SAMPLE_GYRO_VALID;
         updated = true;
     }
 
     if(bmi088_async_get_accel(raw_acc)) {
         s_bmi088_acc = bmi088_make_acc(raw_acc);
         s_bmi088_sample.acc = s_bmi088_acc;
-        s_bmi088_sample.timestamp_us = bmi088_now_us();
-        sample_flags |= IMU_SAMPLE_ACC_NEW;
-        s_bmi088_has_acc = true;
+        s_bmi088_sample.acc_timestamp_us = now_us;
+        sample_flags |= IMU_SAMPLE_ACC_NEW | IMU_SAMPLE_ACC_VALID;
         updated = true;
     }
+
+    bmi088_update_temp_cache(now_us, &sample_flags);
 
     if(!updated) {
         return IMU_STATUS_NOT_READY;
@@ -413,6 +415,7 @@ static ImuStatus bmi088_update(void) {
 static ImuStatus bmi088_blocking_update(void) {
     float raw_acc[3] = { 0.0f };
     float raw_gyro[3] = { 0.0f };
+    uint32_t now_us = 0U;
 
     if(!s_bmi088_is_initialized) {
         return IMU_STATUS_NOT_INITIALIZE;
@@ -425,9 +428,13 @@ static ImuStatus bmi088_blocking_update(void) {
     s_bmi088_acc = bmi088_make_acc(raw_acc);
     s_bmi088_sample.gyro = s_bmi088_gyro;
     s_bmi088_sample.acc = s_bmi088_acc;
-    s_bmi088_sample.timestamp_us = bmi088_now_us();
-    s_bmi088_sample.flags = IMU_SAMPLE_GYRO_NEW | IMU_SAMPLE_ACC_NEW;
-    s_bmi088_has_acc = true;
+    now_us = bmi088_now_us();
+    s_bmi088_sample.gyro_timestamp_us = now_us;
+    s_bmi088_sample.acc_timestamp_us = now_us;
+    s_bmi088_sample.flags = IMU_SAMPLE_GYRO_NEW | IMU_SAMPLE_ACC_NEW |
+        IMU_SAMPLE_GYRO_VALID | IMU_SAMPLE_ACC_VALID |
+        (s_bmi088_sample.flags & IMU_SAMPLE_TEMP_VALID);
+    bmi088_update_temp_cache(now_us, &s_bmi088_sample.flags);
     bmi088_attitude_update();
     return IMU_STATUS_OK;
 }
@@ -454,6 +461,8 @@ static ImuAngle bmi088_get_angle(void) {
 }
 
 static ImuStatus bmi088_get_sample(ImuSample* sample) {
+    uint8_t new_flags = 0U;
+
     if(sample == 0) {
         return IMU_STATUS_INVALID_PARAM;
     }
@@ -462,12 +471,14 @@ static ImuStatus bmi088_get_sample(ImuSample* sample) {
         return IMU_STATUS_NOT_INITIALIZE;
     }
 
-    if(s_bmi088_sample.flags == IMU_SAMPLE_NONE) {
+    new_flags = s_bmi088_sample.flags &
+        (IMU_SAMPLE_ACC_NEW | IMU_SAMPLE_GYRO_NEW | IMU_SAMPLE_TEMP_NEW);
+    if(new_flags == IMU_SAMPLE_NONE) {
         return IMU_STATUS_NOT_READY;
     }
 
     *sample = s_bmi088_sample;
-    s_bmi088_sample.flags = IMU_SAMPLE_NONE;
+    s_bmi088_sample.flags &= (IMU_SAMPLE_ACC_VALID | IMU_SAMPLE_GYRO_VALID | IMU_SAMPLE_TEMP_VALID);
     return IMU_STATUS_OK;
 }
 
@@ -873,12 +884,9 @@ static void bmi088_attitude_update(void) {
     }
 
     sample = s_bmi088_sample;
-    if(s_bmi088_has_acc) {
-        sample.flags |= IMU_SAMPLE_ACC_NEW;
-    }
-
     status = imu_attitude_update(&s_bmi088_attitude, &sample);
-    if(status == IMU_ATTITUDE_STATUS_OK) {
+    if(status == IMU_ATTITUDE_STATUS_OK ||
+        (status == IMU_ATTITUDE_STATUS_CALIBRATING && s_bmi088_attitude.has_angle != 0U)) {
         (void)imu_attitude_get_angle(&s_bmi088_attitude, &s_bmi088_angle);
     }
 }
@@ -1144,31 +1152,45 @@ static void bmi088_dma_prepare_txrx(uint16_t len) {
  * @brief DMA 启动前维护 Cache
  */
 static void bmi088_dma_maintain_before_start(uint16_t len) {
-#if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
-    uintptr_t tx_start = ((uintptr_t)s_bmi088_tx) & ~(uintptr_t)31U;
-    uintptr_t rx_start = ((uintptr_t)s_bmi088_rx) & ~(uintptr_t)31U;
-    int32_t tx_size = (int32_t)((((uintptr_t)s_bmi088_tx + len + 31U) & ~(uintptr_t)31U) - tx_start);
-    int32_t rx_size = (int32_t)((((uintptr_t)s_bmi088_rx + len + 31U) & ~(uintptr_t)31U) - rx_start);
+    if(s_bmi088_ops != 0 && s_bmi088_ops->cache_clean != 0) {
+        s_bmi088_ops->cache_clean(s_bmi088_tx, len);
+    }
 
-    SCB_CleanDCache_by_Addr((uint32_t*)tx_start, tx_size);
-    SCB_InvalidateDCache_by_Addr((uint32_t*)rx_start, rx_size);
-#else
-    (void)len;
-#endif
+    if(s_bmi088_ops != 0 && s_bmi088_ops->cache_invalidate != 0) {
+        s_bmi088_ops->cache_invalidate(s_bmi088_rx, len);
+    }
 }
 
 /**
  * @brief DMA 结束后维护 Cache
  */
 static void bmi088_dma_maintain_after_finish(uint16_t len) {
-#if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
-    uintptr_t rx_start = ((uintptr_t)s_bmi088_rx) & ~(uintptr_t)31U;
-    int32_t rx_size = (int32_t)((((uintptr_t)s_bmi088_rx + len + 31U) & ~(uintptr_t)31U) - rx_start);
+    if(s_bmi088_ops != 0 && s_bmi088_ops->cache_invalidate != 0) {
+        s_bmi088_ops->cache_invalidate(s_bmi088_rx, len);
+        return;
+    }
 
-    SCB_InvalidateDCache_by_Addr((uint32_t*)rx_start, rx_size);
-#else
     (void)len;
-#endif
+}
+
+static void bmi088_update_temp_cache(uint32_t now_us, uint8_t* sample_flags) {
+    if(sample_flags == 0) {
+        return;
+    }
+
+    if(now_us == 0U) {
+        now_us = bmi088_now_us();
+    }
+
+    if(s_bmi088_sample.temp_timestamp_us != 0U &&
+        (now_us - s_bmi088_sample.temp_timestamp_us) < BMI088_TEMP_UPDATE_PERIOD_US) {
+        return;
+    }
+
+    bmi088_read_temp_raw(&s_bmi088_temp);
+    s_bmi088_sample.temperature = s_bmi088_temp;
+    s_bmi088_sample.temp_timestamp_us = now_us;
+    *sample_flags |= IMU_SAMPLE_TEMP_NEW | IMU_SAMPLE_TEMP_VALID;
 }
 
 /**

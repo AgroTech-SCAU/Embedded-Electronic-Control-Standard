@@ -9,14 +9,6 @@
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
 /**
- * @file bmi088.h
- * @brief Bosch BMI088 六轴 IMU 驱动接口
- *
- * BMI088 驱动通过 `ImuInterface` 暴露统一 IMU 能力，并通过
- * `Bmi088PortOps` 注入平台相关 SPI、片选、时间和延时函数
- */
-
-/**
  * @brief BMI088 初始化错误码
  */
 typedef enum {
@@ -53,6 +45,8 @@ typedef struct {
     uint32_t(*now_ms)(void);       /**< 获取当前单调时间，单位 ms */
     void (*delay_ms)(uint32_t ms); /**< 可选阻塞延时，单位 ms */
     void (*delay_us)(uint16_t us); /**< 阻塞延时，单位 us */
+    void (*cache_clean)(const void* addr, uint32_t len); /**< 可选 DMA 启动前 cache clean */
+    void (*cache_invalidate)(const void* addr, uint32_t len); /**< 可选 DMA 结束后 cache invalidate */
 } Bmi088PortOps;
 
 /**
@@ -60,11 +54,11 @@ typedef struct {
  */
 typedef struct {
     const Bmi088PortOps* ops;     /**< 平台端口函数表，不能为空 */
-    float accel_sen;             /**< 加速度原始值灵敏度系数，默认 3G 量程 */
-    float gyro_sen;              /**< 陀螺仪原始值灵敏度系数，默认 2000 dps 量程 */
-    uint16_t accel_int_pin;      /**< 加速度计数据就绪中断引脚；阻塞实例可填 0 */
-    uint16_t gyro_int_pin;       /**< 陀螺仪数据就绪中断引脚；阻塞实例可填 0 */
-    ImuAttitudeConfig attitude;  /**< 姿态融合配置；`mode` 为 `IMU_ATTITUDE_NONE` 时关闭融合 */
+    float accel_sen;              /**< 加速度原始值灵敏度系数，默认 3G 量程 */
+    float gyro_sen;               /**< 陀螺仪原始值灵敏度系数，默认 2000 dps 量程 */
+    uint16_t accel_int_pin;       /**< 加速度计数据就绪中断引脚；阻塞实例可填 0 */
+    uint16_t gyro_int_pin;        /**< 陀螺仪数据就绪中断引脚；阻塞实例可填 0 */
+    ImuAttitudeConfig attitude;   /**< 姿态融合配置；`mode` 为 `IMU_ATTITUDE_NONE` 时关闭融合 */
 } Bmi088Config;
 
 /**
@@ -104,8 +98,10 @@ const char* bmi088_error_str(Bmi088Error error);
 Bmi088Error bmi088_get_init_error(void);
 
 /**
- * @brief 阻塞读取 BMI088 温度
+ * @brief 获取缓存的 BMI088 温度
  * @return 温度，单位摄氏度；未初始化时返回 0
+ *
+ * 温度由 `update()` 内部周期性刷新，此接口不再触发阻塞读取。
  */
 float bmi088_get_temp(void);
 

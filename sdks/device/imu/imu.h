@@ -6,15 +6,6 @@
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
 /**
- * @file imu.h
- * @brief IMU 设备统一抽象接口
- *
- * 本文件只定义上层通用能力：初始化、刷新、读取加速度、角速度、
- * 姿态角和原始采样具体硬件、端口回调、姿态融合算法由具体 IMU
- * 实例自行组合，例如 BMI088
- */
-
-/**
  * @brief 当前 IMU 实例的便捷访问宏
  *
  * 上层可使用 `imu.update()`、`imu.get_acc()` 等形式访问当前绑定实例；
@@ -78,17 +69,22 @@ typedef enum {
     IMU_SAMPLE_ACC_NEW = 1 << 0,     /**< 本次采样包含新的加速度 */
     IMU_SAMPLE_GYRO_NEW = 1 << 1,    /**< 本次采样包含新的角速度 */
     IMU_SAMPLE_TEMP_NEW = 1 << 2,    /**< 本次采样包含新的温度 */
+    IMU_SAMPLE_ACC_VALID = 1 << 3,   /**< 当前缓存中存在可用于融合的加速度 */
+    IMU_SAMPLE_GYRO_VALID = 1 << 4,  /**< 当前缓存中存在可用于积分的角速度 */
+    IMU_SAMPLE_TEMP_VALID = 1 << 5,  /**< 当前缓存中存在可读取的温度 */
 } ImuSampleFlags;
 
 /**
  * @brief IMU 一帧采样数据
  */
 typedef struct {
-    ImuAcc acc;           /**< 最近一次加速度数据 */
-    ImuGyro gyro;         /**< 最近一次角速度数据 */
-    float temperature;    /**< 最近一次温度数据，单位由具体驱动定义 */
-    uint32_t timestamp_us;/**< 采样时间戳，单位 us */
-    uint8_t flags;        /**< 本次采样包含的新数据标志，见 @ref ImuSampleFlags */
+    ImuAcc acc;                /**< 最近一次加速度数据 */
+    ImuGyro gyro;              /**< 最近一次角速度数据 */
+    float temperature;         /**< 最近一次温度数据，单位由具体驱动定义 */
+    uint32_t acc_timestamp_us; /**< 最近一次加速度时间戳，单位 us */
+    uint32_t gyro_timestamp_us;/**< 最近一次角速度时间戳，单位 us */
+    uint32_t temp_timestamp_us;/**< 最近一次温度时间戳，单位 us */
+    uint8_t flags;             /**< 本次采样包含的新数据标志，见 @ref ImuSampleFlags */
 } ImuSample;
 
 /**
@@ -111,6 +107,8 @@ typedef struct {
     uint16_t gyro_calib_samples;/**< 启动时用于估计陀螺零偏的样本数；0 表示跳过校准 */
     float acc_norm;             /**< 静止重力加速度参考值，通常为 9.80665 */
     float acc_norm_tolerance;   /**< 加速度模长可信窗口，超过该误差时不使用加速度修正 */
+    uint32_t max_acc_age_us;    /**< 加速度参与融合前允许的最大陈旧时间，单位 us */
+    float gyro_calib_var_threshold; /**< 启动静止校准时允许的陀螺方差阈值 */
     float complementary_tau;    /**< 互补滤波时间常数，单位 s */
     float mahony_kp;            /**< Mahony 比例增益，主要影响 roll/pitch 收敛速度 */
     float mahony_ki;            /**< Mahony x/y 轴积分增益，用于慢速零偏修正 */

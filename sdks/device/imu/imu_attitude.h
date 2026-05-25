@@ -8,14 +8,6 @@
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
 /**
- * @file imu_attitude.h
- * @brief IMU 姿态融合纯算法模块
- *
- * 该模块不直接访问硬件，也不注册为设备实例调用方只需维护一个
- * `ImuAttitude` 状态对象，并在有新采样时调用 `imu_attitude_update()`
- */
-
-/**
  * @brief 姿态融合算法状态码
  */
 typedef enum {
@@ -47,12 +39,16 @@ typedef struct {
     ImuAngle angle;           /**< 当前姿态角 */
     ImuGyro gyro_bias;        /**< 陀螺零偏估计 */
     ImuGyro gyro_bias_sum;    /**< 启动校准阶段的零偏累加值 */
+    ImuGyro gyro_sq_sum;      /**< 启动校准阶段的角速度平方和，用于方差估计 */
     ImuGyro gyro_filtered;    /**< 最近一次去零偏或修正后的角速度 */
     ImuAcc acc_filtered;      /**< 最近一次用于融合的加速度 */
+    float last_acc_norm;      /**< 最近一次参与可信度判断的加速度模长 */
+    uint32_t last_acc_age_us; /**< 最近一次参与融合的加速度相对 gyro 的陈旧时间 */
     uint32_t last_update_us;  /**< 上一次更新的时间戳，单位 us */
     uint16_t calib_count;     /**< 已累计的陀螺校准样本数 */
     uint8_t calibrated;       /**< 非 0 表示陀螺零偏校准完成 */
     uint8_t has_angle;        /**< 非 0 表示当前已有可读取姿态 */
+    uint8_t acc_trusted;      /**< 非 0 表示最近一次融合时加速度被认为可信 */
 } ImuAttitude;
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //

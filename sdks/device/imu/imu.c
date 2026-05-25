@@ -2,9 +2,6 @@
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
-/**
- * @brief Currently bound concrete IMU instance.
- */
 const ImuInterface* imu_instance = 0;
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
@@ -84,8 +81,12 @@ ImuStatus imu_get_sample(ImuSample* sample) {
     sample->acc = imu_instance->get_acc();
     sample->gyro = imu_instance->get_gyro();
     sample->temperature = 0.0f;
-    sample->timestamp_us = 0U;
-    sample->flags = IMU_SAMPLE_ACC_NEW | IMU_SAMPLE_GYRO_NEW;
+
+    sample->acc_timestamp_us = 0U;
+    sample->gyro_timestamp_us = 0U;
+    sample->temp_timestamp_us = 0U;
+    sample->flags = IMU_SAMPLE_ACC_NEW | IMU_SAMPLE_GYRO_NEW |
+        IMU_SAMPLE_ACC_VALID | IMU_SAMPLE_GYRO_VALID;
     return IMU_STATUS_OK;
 }
 
