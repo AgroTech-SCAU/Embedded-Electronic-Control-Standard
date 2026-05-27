@@ -133,11 +133,15 @@ ImuAttitudeStatus imu_attitude_reset_yaw(ImuAttitude* attitude, float yaw) {
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
 
 static float imu_attitude_wrap_pi(float angle) {
-    while(angle >= IMU_ATTITUDE_PI) {
-        angle -= IMU_ATTITUDE_2PI;
+    if(!isfinite(angle)) {
+        return 0.0f;
     }
 
-    while(angle < -IMU_ATTITUDE_PI) {
+    angle = fmodf(angle, IMU_ATTITUDE_2PI);
+    if(angle >= IMU_ATTITUDE_PI) {
+        angle -= IMU_ATTITUDE_2PI;
+    }
+    else if(angle < -IMU_ATTITUDE_PI) {
         angle += IMU_ATTITUDE_2PI;
     }
 

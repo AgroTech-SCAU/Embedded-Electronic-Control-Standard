@@ -103,7 +103,6 @@ typedef enum {
  */
 typedef struct {
     ImuAttitudeMode mode;       /**< 融合模式，见 @ref ImuAttitudeMode */
-    uint32_t(*now_us)(void);    /**< 可选时间函数；当前 BMI088 使用自身时间戳，可传 NULL */
     uint16_t gyro_calib_samples;/**< 启动时用于估计陀螺零偏的样本数；0 表示跳过校准 */
     float acc_norm;             /**< 静止重力加速度参考值，通常为 9.80665 */
     float acc_norm_tolerance;   /**< 加速度模长可信窗口，超过该误差时不使用加速度修正 */

@@ -69,6 +69,12 @@ ImuAngle angle = imu.get_angle();
 - 加速度计和陀螺仪 data-ready EXTI 回调
 - SPI DMA 完成/错误回调转发
 
+建议同时提供：
+
+- `Bmi088PortOps.now_us`
+
+这样 BMI088 驱动会直接生成高精度 `*_timestamp_us`；如果 `now_us` 为空，则回退到 `now_ms() * 1000`
+
 典型初始化：
 
 ```c
@@ -159,7 +165,6 @@ static ImuAttitude attitude;
 void attitude_init(void) {
     ImuAttitudeConfig config = {
         .mode = IMU_ATTITUDE_MAHONY_6AXIS,
-        .now_us = NULL,
         .gyro_calib_samples = 100,
         .acc_norm = 9.80665f,
         .acc_norm_tolerance = 2.5f,

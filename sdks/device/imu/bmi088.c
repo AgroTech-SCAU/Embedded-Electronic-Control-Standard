@@ -157,15 +157,14 @@ static float s_bmi088_accel_sen = BMI088_ACCEL_3G_SEN;
 static float s_bmi088_gyro_sen = BMI088_GYRO_2000_SEN;
 static uint16_t s_bmi088_accel_int_pin = 0U;
 static uint16_t s_bmi088_gyro_int_pin = 0U;
-
 static volatile Bmi088DmaState s_bmi088_dma_state = BMI088_DMA_IDLE;
 static volatile uint8_t s_bmi088_gyro_pending = 0U;
 static volatile uint8_t s_bmi088_accel_pending = 0U;
 static volatile uint8_t s_bmi088_gyro_ready = 0U;
 static volatile uint8_t s_bmi088_accel_ready = 0U;
 
-__attribute__((aligned(32))) static uint8_t s_bmi088_tx[BMI088_DMA_ACCEL_FRAME_LEN];
-__attribute__((aligned(32))) static uint8_t s_bmi088_rx[BMI088_DMA_ACCEL_FRAME_LEN];
+__attribute__((section(".ram_d2"), aligned(32))) static uint8_t s_bmi088_tx[BMI088_DMA_ACCEL_FRAME_LEN];
+__attribute__((section(".ram_d2"), aligned(32))) static uint8_t s_bmi088_rx[BMI088_DMA_ACCEL_FRAME_LEN];
 
 static float s_bmi088_gyro_dma[3];
 static float s_bmi088_accel_dma[3];
@@ -237,7 +236,6 @@ ImuStatus bmi088_make_config(Bmi088Config* config, const Bmi088PortOps* ops, con
     config->accel_int_pin = accel_int_pin;
     config->gyro_int_pin = gyro_int_pin;
     config->attitude.mode = IMU_ATTITUDE_MAHONY_6AXIS;
-    config->attitude.now_us = 0;
     config->attitude.gyro_calib_samples = 1000U;
     config->attitude.acc_norm = 9.80665f;
     config->attitude.acc_norm_tolerance = 1.5f;
@@ -856,6 +854,10 @@ static uint32_t bmi088_now_ms(void) {
 }
 
 static uint32_t bmi088_now_us(void) {
+    if(s_bmi088_ops->now_us != 0) {
+        return s_bmi088_ops->now_us();
+    }
+
     return bmi088_now_ms() * 1000U;
 }
 
@@ -870,7 +872,7 @@ static bool bmi088_config_is_valid(const Bmi088Config* config, bool require_asyn
     if(ops->accel_cs_low == 0 || ops->accel_cs_high == 0 ||
         ops->gyro_cs_low == 0 || ops->gyro_cs_high == 0 ||
         ops->read_write_byte == 0 || ops->now_ms == 0 ||
-        ops->delay_us == 0) {
+        ops->now_us == 0 || ops->delay_ms == 0 || ops->delay_us == 0) {
         return false;
     }
 
@@ -933,11 +935,6 @@ static void bmi088_com_init(void) {}
 static void bmi088_delay_ms(uint16_t ms) {
     if(s_bmi088_ops != 0 && s_bmi088_ops->delay_ms != 0) {
         s_bmi088_ops->delay_ms(ms);
-    }
-    else {
-        while(ms--) {
-            bmi088_delay_us(1000U);
-        }
     }
 }
 

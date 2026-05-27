@@ -43,6 +43,7 @@ typedef struct {
     bool (*transmit_receive_dma)(uint8_t* tx_data, uint8_t* rx_data, uint16_t len); /**< 可选 SPI DMA 收发 */
     void* (*get_spi_handle)(void); /**< 可选 SPI 句柄，用于 DMA 完成回调归属判断 */
     uint32_t(*now_ms)(void);       /**< 获取当前单调时间，单位 ms */
+    uint32_t(*now_us)(void);       /**< 可选高精度单调时间，单位 us；为空时回退到 `now_ms() * 1000` */
     void (*delay_ms)(uint32_t ms); /**< 可选阻塞延时，单位 ms */
     void (*delay_us)(uint16_t us); /**< 阻塞延时，单位 us */
     void (*cache_clean)(const void* addr, uint32_t len); /**< 可选 DMA 启动前 cache clean */
@@ -101,7 +102,7 @@ Bmi088Error bmi088_get_init_error(void);
  * @brief 获取缓存的 BMI088 温度
  * @return 温度，单位摄氏度；未初始化时返回 0
  *
- * 温度由 `update()` 内部周期性刷新，此接口不再触发阻塞读取。
+ * 温度由 `update()` 内部周期性刷新，此接口不再触发阻塞读取
  */
 float bmi088_get_temp(void);
 
