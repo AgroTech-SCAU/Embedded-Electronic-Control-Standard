@@ -381,7 +381,7 @@ static void chassis_external_to_internal_twist(float vx_ext, float vy_ext, float
 static void chassis_internal_to_external_twist(float vx_int, float vy_int, float wz_int, float* vx_ext, float* vy_ext, float* wz_ext);
 
 /**
- * @brief 将角度归一化到 [-pi, pi] 区间
+ * @brief 将角度归一化到 (-pi, pi] 区间
  *
  * 单位为 rad；
  * 该函数用于计算最短角度误差
@@ -403,10 +403,11 @@ static float chassis_wrap_pi(float angle);
 static float chassis_smoothstep(float x);
 
 /**
- * @brief 选择距离当前电机位置最近的同舵向绝对目标角
+ * @brief 按当前模式生成同舵向的转向电机绝对目标角
  *
  * 输入 target_angle 表示理论舵向角；
- * 输出为位置边界内的等效绝对目标角
+ * ABS_NEAREST 模式选择离当前转向位置最近的等效绝对角，
+ * WRAP_PI 模式直接将最终目标限制到 (-pi, pi]
  *
  * @param current_angle 当前转向电机绝对位置角，单位 rad
  * @param target_angle 理论舵向角，单位 rad
@@ -454,14 +455,6 @@ static void chassis_reset_steer_speed_profiles(void);
  * @return float 转向跟踪速度命令，单位 rad/s
  */
 static float chassis_calc_steer_track_speed(ChassisModule module, float target_angle);
-
-/**
- * @brief 立即停止所有驱动电机
- *
- * 启动未就绪或遥控离线时调用；
- * 只影响驱动电机，不改变转向目标
- */
-static void chassis_stop_all_drive_motors(void);
 
 /**
  * @brief 在转向反馈缺失时重试上电准备序列
@@ -661,7 +654,6 @@ ChassisErrorCode chassis_process(void) {
 
     if(chassis_maintain_motor_startup(steer_feedback_observed, steer_missing_mask,
         drive_feedback_observed, drive_missing_mask) == false) {
-        chassis_stop_all_drive_motors();
         s_chassis.kine.state.cur_vx = 0.0f;
         s_chassis.kine.state.cur_vy = 0.0f;
         s_chassis.kine.state.cur_wz = 0.0f;
@@ -919,19 +911,8 @@ static ChassisErrorCode chassis_prepare_drive_motors(void) {
     return all_ok ? ch.OK : ch.DRIVE_PREPARE_FAILED;
 }
 
-static void chassis_stop_all_drive_motors(void) {
-    uint8_t i;
-
-    for(i = 0u; i < CHASSIS_MODULE_COUNT; ++i) {
-        (void)drive_motor.stop(s_module_map[i].drive_id);
-    }
-}
-
-static bool chassis_maintain_motor_startup(
-    bool steer_feedback_observed,
-    uint8_t steer_missing_mask,
-    bool drive_feedback_observed,
-    uint8_t drive_missing_mask) {
+static bool chassis_maintain_motor_startup(bool steer_feedback_observed, uint8_t steer_missing_mask,
+    bool drive_feedback_observed, uint8_t drive_missing_mask) {
     if(steer_feedback_observed) {
         if(s_chassis.steer_motor_ready == 0u) {
             log_info("CHASSIS steer motor ready");
@@ -1008,18 +989,29 @@ static void chassis_internal_to_external_twist(float vx_int, float vy_int, float
 }
 
 static float chassis_wrap_pi(float angle) {
-    while(angle > CHASSIS_PI) {
-        angle -= CHASSIS_2PI;
-    }
-    while(angle <= -CHASSIS_PI) {
-        angle += CHASSIS_2PI;
+    if(!isfinite(angle)) {
+        return 0.0f;
     }
 
+    angle = fmodf(angle, CHASSIS_2PI);
+    if(angle > CHASSIS_PI) {
+        angle -= CHASSIS_2PI;
+    }
+    else if(angle <= -CHASSIS_PI) {
+        angle += CHASSIS_2PI;
+    }
     return angle;
 }
 
 static float chassis_select_nearest_heading_angle(float current_angle, float target_angle) {
     float nearest_target;
+
+    if(!isfinite(current_angle)) {
+        current_angle = 0.0f;
+    }
+    else if(current_angle > CHASSIS_STEER_POS_LIMIT_RAD || current_angle < -CHASSIS_STEER_POS_LIMIT_RAD) {
+        current_angle = chassis_wrap_pi(current_angle);
+    }
 
     target_angle = chassis_wrap_pi(target_angle);
 

@@ -60,7 +60,7 @@ typedef enum {
 /**
  * @brief 转向电机目标角生成模式
  * @param CHASSIS_STEER_TARGET_ABS_NEAREST 选择距离当前位置最近的绝对角等效解
- * @param CHASSIS_STEER_TARGET_WRAP_PI 强制最终目标角限制在
+ * @param CHASSIS_STEER_TARGET_WRAP_PI 强制最终目标角限制在(-pi, pi]范围内，适用于连续旋转的转向机构
  */
 typedef enum {
     CHASSIS_STEER_TARGET_ABS_NEAREST = 0,
