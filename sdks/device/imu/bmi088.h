@@ -63,6 +63,22 @@ typedef struct {
 } Bmi088Config;
 
 /**
+ * @brief BMI088 姿态/温漂补偿调试信息
+ */
+typedef struct {
+    float temperature;         /**< 当前缓存温度，单位 ℃ */
+    float gyro_temp_ref;       /**< 启动标定时的参考温度，单位 ℃ */
+    ImuGyro gyro_bias;         /**< 当前陀螺零偏估计，单位 rad/s */
+    ImuGyro gyro_corrected;    /**< 当前零偏+温漂补偿后的角速度，单位 rad/s */
+    ImuGyro gyro_temp_comp;    /**< 当前三轴温漂补偿量，单位 rad/s */
+    float gyro_z_temp_intercept; /**< z 轴 bias 线性模型截距 */
+    float gyro_z_bias_effective; /**< 当前实际用于扣除的 z 轴 bias */
+    ImuGyro gyro_temp_coeff;   /**< 当前三轴温漂补偿系数，单位 rad/s/℃ */
+    bool zru_enabled;          /**< true 表示当前允许执行静止 ZRU */
+    bool zru_active;           /**< true 表示当前已进入静止 ZRU 修正 */
+} Bmi088AttitudeDebug;
+
+/**
  * @brief BMI088 中断 + SPI DMA 异步 IMU 实例
  */
 extern const ImuInterface bmi088_instance;
@@ -105,6 +121,26 @@ Bmi088Error bmi088_get_init_error(void);
  * 温度由 `update()` 内部周期性刷新，此接口不再触发阻塞读取
  */
 float bmi088_get_temp(void);
+
+/**
+ * @brief 获取 BMI088 当前姿态/温漂补偿调试信息
+ * @param debug 输出调试信息
+ * @return IMU 状态码
+ */
+ImuStatus bmi088_get_attitude_debug(Bmi088AttitudeDebug* debug);
+
+/**
+ * @brief 设置 BMI088 姿态模块的静止 ZRU 开关
+ * @param enabled true 允许执行静止 ZRU，false 禁止
+ * @return IMU 状态码
+ */
+ImuStatus bmi088_set_zru_enabled(bool enabled);
+
+/**
+ * @brief 获取 BMI088 姿态模块当前是否允许执行静止 ZRU
+ * @return true 允许执行，false 禁止或未启用姿态模块
+ */
+bool bmi088_is_zru_enabled(void);
 
 /**
  * @brief BMI088 数据就绪 EXTI 回调转发入口

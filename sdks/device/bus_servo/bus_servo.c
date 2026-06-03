@@ -24,7 +24,7 @@ BusServoStatus bus_servo_set_instance(const BusServoInterface* instance) {
 /**
  * @brief 初始化当前绑定的舵机实例
  */
-BusServoStatus bus_servo_init(const BusServoConfig* config) {
+BusServoStatus bus_servo_init(const void* config) {
     if(bus_servo_instance == 0 || bus_servo_instance->init == 0) {
         return SERVO_STATUS_NO_INSTANCE;
     }

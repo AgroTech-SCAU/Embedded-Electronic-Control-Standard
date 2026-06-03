@@ -105,15 +105,15 @@ static const BusServoPortOps servo_ops = {
 };
 
 void device_servo_init(void) {
-    BusServoConfig config = {
+    FtScsServoConfig config = {
         .ops = &servo_ops,
         .timeout_ms = 100u,
         .retry_count = 0u,
         .endian = SERVO_ENDIAN_LITTLE,
     };
 
-    servo_set_instance(&ft_scs_servo_common_instance);
-    servo_init(&config);
+    bus_servo_set_instance(&ft_scs_servo_common_instance);
+    bus_servo_init(&config);
 }
 ```
 

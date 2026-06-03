@@ -138,6 +138,9 @@ config.attitude.acc_norm_tolerance = 2.5f;
 config.attitude.mahony_kp = 2.0f;
 config.attitude.mahony_ki = 0.0f;
 config.attitude.mahony_ki_z = 0.0f;
+config.attitude.gyro_x_temp_coeff = 0.0f;
+config.attitude.gyro_y_temp_coeff = 0.0f;
+config.attitude.gyro_z_temp_coeff = 0.00010f;
 ```
 
 关闭姿态融合：
@@ -172,6 +175,9 @@ void attitude_init(void) {
         .mahony_kp = 2.0f,
         .mahony_ki = 0.0f,
         .mahony_ki_z = 0.0f,
+        .gyro_x_temp_coeff = 0.0f,
+        .gyro_y_temp_coeff = 0.0f,
+        .gyro_z_temp_coeff = 0.00010f,
     };
 
     imu_attitude_init(&attitude, &config);
@@ -202,7 +208,8 @@ void attitude_update_from_sample(const ImuSample* sample) {
 - `imu_get_gyro()`：读取最近三轴角速度
 - `imu_get_angle()`：读取最近姿态角
 - `imu_get_sample(sample)`：读取最近采样帧，主要给调试或算法复用使用
-- `bmi088_get_temp()`：阻塞读取 BMI088 温度
+- `imu_get_gyro_corrected()`：读取扣除零偏和温漂补偿后的角速度
+- `bmi088_get_temp()`：读取 `update()` 周期刷新后的 BMI088 温度缓存
 
 ## 调试建议
 

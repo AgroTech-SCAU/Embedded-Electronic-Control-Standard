@@ -1,4 +1,4 @@
-#include "six_dof_arm_kine.h"
+#include "serial_arm/six_dof_arm_kine.h"
 
 #include <math.h>
 #include <string.h>
@@ -140,8 +140,8 @@ ArmStatus s_six_dof_ik(const Pose* pose, SixDofJoint* joints, const SixDofJoint*
         float norm_pos = sqrtf(dp[0] * dp[0] + dp[1] * dp[1] + dp[2] * dp[2]);
         float norm_ori = sqrtf(eo[0] * eo[0] + eo[1] * eo[1] + eo[2] * eo[2]);
 
-        int pos_ok = (mode == IK_MODE_ORIENTATION_ONLY) ? 1 : (norm_pos < 1e-4f);
-        int ori_ok = (mode == IK_MODE_POSITION_ONLY) ? 1 : (norm_ori < 1e-3f);
+        bool pos_ok = (mode == IK_MODE_ORIENTATION_ONLY) || (norm_pos < 1e-4f);
+        bool ori_ok = (mode == IK_MODE_POSITION_ONLY) || (norm_ori < 1e-3f);
 
         if(pos_ok && ori_ok) {
             array_to_joints(&q, joints);

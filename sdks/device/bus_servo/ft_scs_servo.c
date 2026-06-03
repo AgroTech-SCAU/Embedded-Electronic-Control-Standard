@@ -96,7 +96,7 @@ static FtScsBusServoContext s_ctx;
  * @param config 初始化配置
  * @return 状态码
  */
-static BusServoStatus ft_scs_common_init(const BusServoConfig* config);
+static BusServoStatus ft_scs_common_init(const void* config);
 
 /**
  * @brief 将状态码转换为字符串
@@ -440,16 +440,18 @@ uint16_t ft_scs_servo_signed_to_raw(int16_t value) {
 /**
  * @brief 初始化 SCS 通用舵机实例
  */
-static BusServoStatus ft_scs_common_init(const BusServoConfig* config) {
-    if(config == 0 || config->ops == 0 || config->ops->write == 0 ||
-        config->ops->read == 0 || config->ops->now_ms == 0) {
+static BusServoStatus ft_scs_common_init(const void* config) {
+    const FtScsServoConfig* scs_config = (const FtScsServoConfig*)config;
+
+    if(scs_config == 0 || scs_config->ops == 0 || scs_config->ops->write == 0 ||
+        scs_config->ops->read == 0 || scs_config->ops->now_ms == 0) {
         return SERVO_STATUS_INVALID_PARAM;
     }
 
-    s_ctx.ops = config->ops;
-    s_ctx.timeout_ms = (config->timeout_ms == 0u) ? FT_SCS_DEFAULT_TIMEOUT_MS : config->timeout_ms;
-    s_ctx.retry_count = config->retry_count;
-    s_ctx.endian = config->endian;
+    s_ctx.ops = scs_config->ops;
+    s_ctx.timeout_ms = (scs_config->timeout_ms == 0u) ? FT_SCS_DEFAULT_TIMEOUT_MS : scs_config->timeout_ms;
+    s_ctx.retry_count = scs_config->retry_count;
+    s_ctx.endian = scs_config->endian;
     s_ctx.initialized = true;
     s_ctx.last_error_code = 0u;
     s_ctx.has_feedback = false;

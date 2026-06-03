@@ -51,6 +51,37 @@ ImuGyro imu_get_gyro(void) {
     return imu_instance->get_gyro();
 }
 
+
+ImuGyro imu_get_gyro_bias(void) {
+    ImuGyro gyro_bias = { 0.0f, 0.0f, 0.0f };
+
+    if(imu_instance == 0 || imu_instance->get_gyro_bias == 0) {
+        return gyro_bias;
+    }
+
+    return imu_instance->get_gyro_bias();
+}
+
+ImuGyro imu_get_gyro_corrected(void) {
+    if(imu_instance == 0) {
+        ImuGyro gyro = { 0.0f, 0.0f, 0.0f };
+        return gyro;
+    }
+
+    if(imu_instance->get_gyro_corrected != 0) {
+        return imu_instance->get_gyro_corrected();
+    }
+
+    if(imu_instance->get_gyro != 0) {
+        return imu_instance->get_gyro();
+    }
+
+    {
+        ImuGyro gyro = { 0.0f, 0.0f, 0.0f };
+        return gyro;
+    }
+}
+
 ImuAngle imu_get_angle(void) {
     ImuAngle angle = { 0.0f, 0.0f, 0.0f };
 

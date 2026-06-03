@@ -1,4 +1,4 @@
-#include "bmi088.h"
+﻿#include "bmi088.h"
 #include "imu_attitude.h"
 
 #include <math.h>
@@ -91,6 +91,8 @@ static ImuStatus bmi088_update(void);
 static ImuStatus bmi088_blocking_update(void);
 static ImuAcc bmi088_get_acc(void);
 static ImuGyro bmi088_get_gyro(void);
+static ImuGyro bmi088_get_gyro_bias(void);
+static ImuGyro bmi088_get_gyro_corrected(void);
 static ImuAngle bmi088_get_angle(void);
 static ImuStatus bmi088_get_sample(ImuSample* sample);
 static const char* bmi088_status_str(ImuStatus status);
@@ -146,6 +148,7 @@ static void bmi088_dma_maintain_after_finish(uint16_t len);
 static void bmi088_update_temp_cache(uint32_t now_us, uint8_t* sample_flags);
 static float bmi088_acc_norm(const float acc[3]);
 static bool bmi088_acc_sample_is_reasonable(const float acc[3]);
+static ImuGyro bmi088_calc_gyro_temp_comp(void);
 
 static ImuAcc bmi088_make_acc(const float acc[3]);
 static ImuGyro bmi088_make_gyro(const float gyro[3]);
@@ -158,10 +161,10 @@ static float s_bmi088_gyro_sen = BMI088_GYRO_2000_SEN;
 static uint16_t s_bmi088_accel_int_pin = 0U;
 static uint16_t s_bmi088_gyro_int_pin = 0U;
 static volatile Bmi088DmaState s_bmi088_dma_state = BMI088_DMA_IDLE;
-static volatile uint8_t s_bmi088_gyro_pending = 0U;
-static volatile uint8_t s_bmi088_accel_pending = 0U;
-static volatile uint8_t s_bmi088_gyro_ready = 0U;
-static volatile uint8_t s_bmi088_accel_ready = 0U;
+static volatile bool s_bmi088_gyro_pending = false;
+static volatile bool s_bmi088_accel_pending = false;
+static volatile bool s_bmi088_gyro_ready = false;
+static volatile bool s_bmi088_accel_ready = false;
 
 __attribute__((section(".ram_d2"), aligned(32))) static uint8_t s_bmi088_tx[BMI088_DMA_ACCEL_FRAME_LEN];
 __attribute__((section(".ram_d2"), aligned(32))) static uint8_t s_bmi088_rx[BMI088_DMA_ACCEL_FRAME_LEN];
@@ -207,6 +210,8 @@ const ImuInterface bmi088_instance = {
     .update = bmi088_update,
     .get_acc = bmi088_get_acc,
     .get_gyro = bmi088_get_gyro,
+    .get_gyro_bias = bmi088_get_gyro_bias,
+    .get_gyro_corrected = bmi088_get_gyro_corrected,
     .get_angle = bmi088_get_angle,
     .get_sample = bmi088_get_sample,
     .status_str = bmi088_status_str,
@@ -220,6 +225,8 @@ const ImuInterface bmi088_blocking_instance = {
     .update = bmi088_blocking_update,
     .get_acc = bmi088_get_acc,
     .get_gyro = bmi088_get_gyro,
+    .get_gyro_bias = bmi088_get_gyro_bias,
+    .get_gyro_corrected = bmi088_get_gyro_corrected,
     .get_angle = bmi088_get_angle,
     .get_sample = bmi088_get_sample,
     .status_str = bmi088_status_str,
@@ -236,7 +243,7 @@ ImuStatus bmi088_make_config(Bmi088Config* config, const Bmi088PortOps* ops, con
     config->accel_int_pin = accel_int_pin;
     config->gyro_int_pin = gyro_int_pin;
     config->attitude.mode = IMU_ATTITUDE_MAHONY_6AXIS;
-    config->attitude.gyro_calib_samples = 1000U;
+    config->attitude.gyro_calib_samples = 2000U;
     config->attitude.acc_norm = 9.80665f;
     config->attitude.acc_norm_tolerance = 1.5f;
     config->attitude.max_acc_age_us = 20000U;
@@ -245,6 +252,21 @@ ImuStatus bmi088_make_config(Bmi088Config* config, const Bmi088PortOps* ops, con
     config->attitude.mahony_kp = 2.0f;
     config->attitude.mahony_ki = 0.0f;
     config->attitude.mahony_ki_z = 0.0f;
+    config->attitude.gyro_x_temp_coeff = 0.0f;
+    config->attitude.gyro_y_temp_coeff = 0.0f;
+
+    /**
+     * 基于冷启动到约 33 C 升温日志的固定拟合：
+     * bias_eff_z = gyro_z_bias_offset + gyro_z_temp_coeff * temp
+     */
+    config->attitude.gyro_z_temp_coeff = 0.000038f;
+    config->attitude.gyro_z_bias_offset = 0.00090f;
+    config->attitude.gyro_z_bias_temp_coeff = 0.0f;
+
+    config->attitude.zru_gyro_threshold = 0.0f;
+    config->attitude.zru_min_static_us = 0U;
+    config->attitude.zru_bias_gain = 0.0f;
+
     return IMU_STATUS_OK;
 }
 
@@ -292,6 +314,64 @@ float bmi088_get_temp(void) {
     }
 
     return s_bmi088_temp;
+}
+
+ImuStatus bmi088_get_attitude_debug(Bmi088AttitudeDebug* debug) {
+    const ImuAttitude* attitude = &s_bmi088_attitude;
+
+    if(debug == 0) {
+        return IMU_STATUS_INVALID_PARAM;
+    }
+
+    if(!s_bmi088_is_initialized) {
+        return IMU_STATUS_NOT_INITIALIZE;
+    }
+
+    memset(debug, 0, sizeof(Bmi088AttitudeDebug));
+    debug->temperature = s_bmi088_temp;
+
+    if(!s_bmi088_attitude_enabled) {
+        return IMU_STATUS_UNSUPPORTED;
+    }
+
+    debug->gyro_temp_ref = attitude->gyro_temp_ref;
+    debug->gyro_bias = attitude->gyro_bias;
+    debug->gyro_corrected = attitude->gyro_filtered;
+    debug->gyro_temp_comp = bmi088_calc_gyro_temp_comp();
+    debug->gyro_z_temp_intercept = attitude->gyro_z_temp_intercept;
+    debug->gyro_z_bias_effective = attitude->gyro_z_bias_effective;
+    debug->gyro_temp_coeff.x = attitude->config.gyro_x_temp_coeff;
+    debug->gyro_temp_coeff.y = attitude->config.gyro_y_temp_coeff;
+    debug->gyro_temp_coeff.z = attitude->config.gyro_z_temp_coeff;
+    debug->zru_enabled = attitude->zru_enabled;
+    debug->zru_active = attitude->zru_active;
+
+    return IMU_STATUS_OK;
+}
+
+ImuStatus bmi088_set_zru_enabled(bool enabled) {
+    (void)enabled;
+
+    if(!s_bmi088_is_initialized) {
+        return IMU_STATUS_NOT_INITIALIZE;
+    }
+
+    if(!s_bmi088_attitude_enabled) {
+        return IMU_STATUS_UNSUPPORTED;
+    }
+
+    s_bmi088_attitude.zru_enabled = false;
+    s_bmi088_attitude.zru_active = false;
+    s_bmi088_attitude.zru_static_time_us = 0U;
+    return IMU_STATUS_OK;
+}
+
+bool bmi088_is_zru_enabled(void) {
+    if(!s_bmi088_is_initialized || !s_bmi088_attitude_enabled) {
+        return false;
+    }
+
+    return false;
 }
 
 /**
@@ -460,6 +540,28 @@ static ImuAcc bmi088_get_acc(void) {
  */
 static ImuGyro bmi088_get_gyro(void) {
     return s_bmi088_gyro;
+}
+
+static ImuGyro bmi088_get_gyro_bias(void) {
+    ImuGyro gyro_bias = { 0.0f, 0.0f, 0.0f };
+
+    if(!s_bmi088_attitude_enabled) {
+        return gyro_bias;
+    }
+
+    (void)imu_attitude_get_gyro_bias(&s_bmi088_attitude, &gyro_bias);
+    return gyro_bias;
+}
+
+static ImuGyro bmi088_get_gyro_corrected(void) {
+    ImuGyro gyro_corrected = { 0.0f, 0.0f, 0.0f };
+
+    if(!s_bmi088_attitude_enabled) {
+        return s_bmi088_gyro;
+    }
+
+    (void)imu_attitude_get_gyro_corrected(&s_bmi088_attitude, &gyro_corrected);
+    return gyro_corrected;
 }
 
 /**
@@ -682,10 +784,10 @@ static void bmi088_read_temp_raw(float* temperature) {
 static void bmi088_async_init(void) {
     s_bmi088_dma_state = BMI088_DMA_IDLE;
     s_bmi088_async_next = BMI088_ASYNC_NEXT_GYRO;
-    s_bmi088_gyro_pending = 1U;
-    s_bmi088_accel_pending = 1U;
-    s_bmi088_gyro_ready = 0U;
-    s_bmi088_accel_ready = 0U;
+    s_bmi088_gyro_pending = true;
+    s_bmi088_accel_pending = true;
+    s_bmi088_gyro_ready = false;
+    s_bmi088_accel_ready = false;
     memset(s_bmi088_tx, 0, sizeof(s_bmi088_tx));
     memset(s_bmi088_rx, 0, sizeof(s_bmi088_rx));
     memset(s_bmi088_gyro_dma, 0, sizeof(s_bmi088_gyro_dma));
@@ -697,14 +799,14 @@ static void bmi088_async_init(void) {
  * @brief 标记陀螺仪数据就绪
  */
 static void bmi088_notify_gyro_data_ready(void) {
-    s_bmi088_gyro_pending = 1U;
+    s_bmi088_gyro_pending = true;
 }
 
 /**
  * @brief 标记加速度计数据就绪
  */
 static void bmi088_notify_accel_data_ready(void) {
-    s_bmi088_accel_pending = 1U;
+    s_bmi088_accel_pending = true;
 }
 
 /**
@@ -719,60 +821,60 @@ static bool bmi088_async_poll(void) {
     }
 
     now_us = bmi088_now_us();
-    if(s_bmi088_gyro_pending == 0U &&
+    if(!s_bmi088_gyro_pending &&
         (s_bmi088_sample.gyro_timestamp_us == 0U ||
             (now_us - s_bmi088_sample.gyro_timestamp_us) > BMI088_GYRO_STALE_TIMEOUT_US)) {
-        s_bmi088_gyro_pending = 1U;
+        s_bmi088_gyro_pending = true;
     }
 
-    if(s_bmi088_accel_pending == 0U &&
+    if(!s_bmi088_accel_pending &&
         (s_bmi088_sample.acc_timestamp_us == 0U ||
             (now_us - s_bmi088_sample.acc_timestamp_us) > BMI088_ACCEL_STALE_TIMEOUT_US)) {
-        s_bmi088_accel_pending = 1U;
+        s_bmi088_accel_pending = true;
     }
 
     prefer_gyro = (s_bmi088_async_next == BMI088_ASYNC_NEXT_GYRO);
 
     if(prefer_gyro) {
-        if(s_bmi088_gyro_pending != 0U) {
-            s_bmi088_gyro_pending = 0U;
+        if(s_bmi088_gyro_pending) {
+            s_bmi088_gyro_pending = false;
             if(bmi088_start_gyro_dma()) {
                 s_bmi088_async_next = BMI088_ASYNC_NEXT_ACCEL;
                 return true;
             }
 
-            s_bmi088_gyro_pending = 1U;
+            s_bmi088_gyro_pending = true;
         }
 
-        if(s_bmi088_accel_pending != 0U) {
-            s_bmi088_accel_pending = 0U;
+        if(s_bmi088_accel_pending) {
+            s_bmi088_accel_pending = false;
             if(bmi088_start_accel_dma()) {
                 s_bmi088_async_next = BMI088_ASYNC_NEXT_GYRO;
                 return true;
             }
 
-            s_bmi088_accel_pending = 1U;
+            s_bmi088_accel_pending = true;
         }
     }
     else {
-        if(s_bmi088_accel_pending != 0U) {
-            s_bmi088_accel_pending = 0U;
+        if(s_bmi088_accel_pending) {
+            s_bmi088_accel_pending = false;
             if(bmi088_start_accel_dma()) {
                 s_bmi088_async_next = BMI088_ASYNC_NEXT_GYRO;
                 return true;
             }
 
-            s_bmi088_accel_pending = 1U;
+            s_bmi088_accel_pending = true;
         }
 
-        if(s_bmi088_gyro_pending != 0U) {
-            s_bmi088_gyro_pending = 0U;
+        if(s_bmi088_gyro_pending) {
+            s_bmi088_gyro_pending = false;
             if(bmi088_start_gyro_dma()) {
                 s_bmi088_async_next = BMI088_ASYNC_NEXT_ACCEL;
                 return true;
             }
 
-            s_bmi088_gyro_pending = 1U;
+            s_bmi088_gyro_pending = true;
         }
     }
 
@@ -783,12 +885,12 @@ static bool bmi088_async_poll(void) {
  * @brief 获取最近一次 DMA 陀螺仪数据
  */
 static bool bmi088_async_get_gyro(float gyro[3]) {
-    if(gyro == 0 || s_bmi088_gyro_ready == 0U) {
+    if(gyro == 0 || !s_bmi088_gyro_ready) {
         return false;
     }
 
     bmi088_copy_vector3(gyro, s_bmi088_gyro_dma);
-    s_bmi088_gyro_ready = 0U;
+    s_bmi088_gyro_ready = false;
     return true;
 }
 
@@ -796,12 +898,12 @@ static bool bmi088_async_get_gyro(float gyro[3]) {
  * @brief 获取最近一次 DMA 加速度数据
  */
 static bool bmi088_async_get_accel(float accel[3]) {
-    if(accel == 0 || s_bmi088_accel_ready == 0U) {
+    if(accel == 0 || !s_bmi088_accel_ready) {
         return false;
     }
 
     bmi088_copy_vector3(accel, s_bmi088_accel_dma);
-    s_bmi088_accel_ready = 0U;
+    s_bmi088_accel_ready = false;
     return true;
 }
 
@@ -821,13 +923,13 @@ static void bmi088_spi_txrx_complete(void* spi_handle) {
         bmi088_gyro_cs_high();
         bmi088_dma_maintain_after_finish(BMI088_DMA_GYRO_FRAME_LEN);
         bmi088_parse_gyro_dma_buffer();
-        s_bmi088_gyro_ready = 1U;
+        s_bmi088_gyro_ready = true;
     }
     else if(s_bmi088_dma_state == BMI088_DMA_ACCEL) {
         bmi088_accel_cs_high();
         bmi088_dma_maintain_after_finish(BMI088_DMA_ACCEL_FRAME_LEN);
         bmi088_parse_accel_dma_buffer();
-        s_bmi088_accel_ready = 1U;
+        s_bmi088_accel_ready = true;
     }
 
     s_bmi088_dma_state = BMI088_DMA_IDLE;
@@ -899,7 +1001,6 @@ static void bmi088_attitude_init(const ImuAttitudeConfig* config) {
 }
 
 static void bmi088_attitude_update(void) {
-    ImuSample sample = { 0 };
     ImuAttitudeStatus status = IMU_ATTITUDE_STATUS_OK;
 
     if(!s_bmi088_attitude_enabled) {
@@ -910,8 +1011,7 @@ static void bmi088_attitude_update(void) {
         return;
     }
 
-    sample = s_bmi088_sample;
-    status = imu_attitude_update(&s_bmi088_attitude, &sample);
+    status = imu_attitude_update(&s_bmi088_attitude, &s_bmi088_sample);
     if(status == IMU_ATTITUDE_STATUS_OK ||
         (status == IMU_ATTITUDE_STATUS_CALIBRATING && s_bmi088_attitude.has_angle != 0U)) {
         (void)imu_attitude_get_angle(&s_bmi088_attitude, &s_bmi088_angle);
@@ -1213,6 +1313,22 @@ static void bmi088_update_temp_cache(uint32_t now_us, uint8_t* sample_flags) {
     s_bmi088_sample.temperature = s_bmi088_temp;
     s_bmi088_sample.temp_timestamp_us = now_us;
     *sample_flags |= IMU_SAMPLE_TEMP_NEW | IMU_SAMPLE_TEMP_VALID;
+}
+
+static ImuGyro bmi088_calc_gyro_temp_comp(void) {
+    ImuGyro gyro_temp_comp = { 0.0f, 0.0f, 0.0f };
+
+    if(!s_bmi088_attitude_enabled || (s_bmi088_sample.flags & IMU_SAMPLE_TEMP_VALID) == 0U) {
+        return gyro_temp_comp;
+    }
+
+    gyro_temp_comp.x = s_bmi088_attitude.config.gyro_x_temp_coeff * s_bmi088_sample.temperature;
+    gyro_temp_comp.y = s_bmi088_attitude.config.gyro_y_temp_coeff * s_bmi088_sample.temperature;
+    gyro_temp_comp.z =
+        s_bmi088_attitude.gyro_z_bias_effective -
+        s_bmi088_attitude.gyro_bias.z;
+
+    return gyro_temp_comp;
 }
 
 static float bmi088_acc_norm(const float acc[3]) {

@@ -49,6 +49,7 @@ typedef struct {
 static const BusMotorPortOps* s_ops = 0;
 static bool s_is_initialized = false;
 static DjiMotorSlot s_slots[DJI_MOTOR_MAX_ID];
+static uint8_t s_pending_current_mask = 0u;
 
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
 
@@ -116,6 +117,7 @@ static BusMotorStatus dji_motor_init(const BusMotorConfig* config) {
     for(id = 1u; id <= DJI_MOTOR_MAX_ID; ++id) {
         dji_motor_reset_slot(&s_slots[id - 1u], id);
     }
+    s_pending_current_mask = 0u;
     s_is_initialized = true;
 
     return MOTOR_STATUS_OK;
@@ -204,6 +206,11 @@ static BusMotorStatus dji_motor_set_spd(uint16_t id, float speed) {
 
     slot->target_speed = speed;
     dji_motor_update_pid(slot);
+    s_pending_current_mask |= (uint8_t)(1u << (id - 1u));
+    if(s_pending_current_mask != ((1u << DJI_MOTOR_MAX_ID) - 1u)) {
+        return MOTOR_STATUS_OK;
+    }
+
     return dji_motor_send_all_current();
 }
 
@@ -427,6 +434,8 @@ static BusMotorStatus dji_motor_send_all_current(void) {
     if(s_ops->send(DJI_MOTOR_CTRL_FRAME_ID, data, DJI_MOTOR_CMD_LEN) == false) {
         return MOTOR_STATUS_PORT_ERROR;
     }
+
+    s_pending_current_mask = 0u;
 
     return MOTOR_STATUS_OK;
 }

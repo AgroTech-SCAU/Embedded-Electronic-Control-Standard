@@ -103,15 +103,28 @@ typedef enum {
  */
 typedef struct {
     ImuAttitudeMode mode;       /**< 融合模式，见 @ref ImuAttitudeMode */
+
     uint16_t gyro_calib_samples;/**< 启动时用于估计陀螺零偏的样本数；0 表示跳过校准 */
     float acc_norm;             /**< 静止重力加速度参考值，通常为 9.80665 */
     float acc_norm_tolerance;   /**< 加速度模长可信窗口，超过该误差时不使用加速度修正 */
     uint32_t max_acc_age_us;    /**< 加速度参与融合前允许的最大陈旧时间，单位 us */
+
     float gyro_calib_var_threshold; /**< 启动静止校准时允许的陀螺方差阈值 */
     float complementary_tau;    /**< 互补滤波时间常数，单位 s */
+
     float mahony_kp;            /**< Mahony 比例增益，主要影响 roll/pitch 收敛速度 */
     float mahony_ki;            /**< Mahony x/y 轴积分增益，用于慢速零偏修正 */
     float mahony_ki_z;          /**< Mahony z 轴积分增益；六轴无绝对 yaw 参考，通常设为 0 */
+
+    float gyro_x_temp_coeff;    /**< 角速度 x 轴温度补偿系数，单位 rad/s/℃；0 表示不启用温度补偿 */
+    float gyro_y_temp_coeff;    /**< 角速度 y 轴温度补偿系数，单位 rad/s/℃；0 表示不启用温度补偿 */
+    float gyro_z_temp_coeff;    /**< 角速度 z 轴温度补偿系数，单位 rad/s/℃；与当前温度直接相乘 */
+    float gyro_z_bias_offset;   /**< z 轴固定 bias 截距，单位 rad/s */
+    float gyro_z_bias_temp_coeff; /**< 兼容保留字段；当前实现不再使用启动 temp_ref 参与 z 轴补偿 */
+
+    float zru_gyro_threshold;   /**< 静止 ZRU 的三轴角速度阈值，单位 rad/s；<=0 表示关闭 ZRU */
+    uint32_t zru_min_static_us; /**< 触发 ZRU 前要求连续静止的最短时间，单位 us */
+    float zru_bias_gain;        /**< ZRU 对 gyro_bias.z 的在线修正增益，单位 1/s；0 表示不修正 */
 } ImuAttitudeConfig;
 
 /**
@@ -124,7 +137,9 @@ typedef struct {
     ImuStatus(*init)(const void* config);      /**< 初始化具体 IMU 驱动 */
     ImuStatus(*update)(void);                  /**< 刷新具体 IMU 的最新缓存 */
     ImuAcc(*get_acc)(void);                    /**< 获取最近一次缓存的加速度 */
-    ImuGyro(*get_gyro)(void);                  /**< 获取最近一次缓存的角速度 */
+    ImuGyro(*get_gyro)(void);                  /**< 获取最近一次缓存的原始角速度 */
+    ImuGyro(*get_gyro_bias)(void);             /**< 获取姿态融合估计的陀螺零偏；可选 */
+    ImuGyro(*get_gyro_corrected)(void);        /**< 获取扣零偏和温漂补偿后的角速度；可选 */
     ImuAngle(*get_angle)(void);                /**< 获取最近一次缓存的姿态角 */
     ImuStatus(*get_sample)(ImuSample* sample); /**< 获取最近一帧采样；可清除具体驱动的新数据标志 */
     const char* (*status_str)(ImuStatus status); /**< 状态码转字符串 */
@@ -164,10 +179,22 @@ ImuStatus imu_update(void);
 ImuAcc imu_get_acc(void);
 
 /**
- * @brief 获取最近一次缓存的角速度
- * @return 三轴角速度
+ * @brief 获取最近一次缓存的原始角速度
+ * @return 三轴角速度，单位 rad/s
  */
 ImuGyro imu_get_gyro(void);
+
+/**
+ * @brief 获取姿态融合估计的陀螺零偏
+ * @return 三轴陀螺零偏，单位 rad/s；实例不支持时返回 0
+ */
+ImuGyro imu_get_gyro_bias(void);
+
+/**
+ * @brief 获取扣除零偏和温漂补偿后的角速度
+ * @return 三轴角速度，单位 rad/s；实例不支持时回退为原始角速度
+ */
+ImuGyro imu_get_gyro_corrected(void);
 
 /**
  * @brief 获取最近一次缓存的姿态角

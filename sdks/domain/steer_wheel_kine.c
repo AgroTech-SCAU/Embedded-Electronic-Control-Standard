@@ -190,11 +190,17 @@ static void sw_get_wheel_pos(const SteerWheelModel* model, float x[4], float y[4
  * @return float 归一化后的角度，单位 rad
  */
 static float sw_wrap_pi(float angle) {
-    while(angle > SW_PI) {
+    if(!isfinite(angle)) {
+        return 0.0f;
+    }
+
+    angle = fmodf(angle, SW_2PI);
+    if(angle > SW_PI) {
         angle -= SW_2PI;
     }
-    while(angle <= -SW_PI) {
+    else if(angle <= -SW_PI) {
         angle += SW_2PI;
     }
+
     return angle;
 }

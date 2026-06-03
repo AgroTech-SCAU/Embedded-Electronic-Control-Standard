@@ -60,6 +60,16 @@
 #define FT_SCS_SERVO_PRESENT_CURRENT_H 70u
 
 /**
+ * @brief FEETECH SCS 初始化配置
+ */
+typedef struct {
+    const BusServoPortOps* ops;
+    uint32_t timeout_ms;
+    uint8_t retry_count;
+    BusServoEndian endian;
+} FtScsServoConfig;
+
+/**
  * @brief FEETECH SCS 协议特色接口表
  *
  * 这些能力属于 SCS 协议专属能力, 因此不放入通用 BusServoInterface
