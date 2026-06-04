@@ -11,9 +11,9 @@
 ## 1. 当前状态
 
 ```text
-Status: Draft v0.1
-用途: AgroTech 协会内部标准建设与项目迁移试用
-稳定性: 文档结构基本确定，SDK API 仍允许调整
+Status: Draft v0.2
+用途: AgroTech 协会内部标准建设、项目迁移试用与文档口径统一
+稳定性: 文档原则基本确定；SDK 代码按模块逐步同步，public API 在 v1.0 前仍允许调整
 ```
 
 ---
@@ -28,7 +28,7 @@ Status: Draft v0.1
 | `团队协作开发文档.md` | Git/GitHub、分支、commit、PR、issue、submodule 协作规范 |
 | `sdks/infra/` | 通用基础设施 SDK，例如 delay、matrix、PID、parser、HFSM、log |
 | `sdks/domain/` | 领域/算法 SDK，例如机械臂运动学、舵轮运动学 |
-| `sdks/device/` | 常用真实设备 SDK，例如 bus_motor、rgb_led，后续用于 bus_servo、encoder、IMU 等 |
+| `sdks/device/` | 常用真实设备 SDK，例如 bus_motor、bus_servo、imu、rgb_led 等；具体代码以当前 `sdks/` 目录实际同步状态为准 |
 
 ---
 
@@ -57,8 +57,15 @@ src/
 - platform 是唯一允许直接包含 HAL/FSP/CMSIS/CubeMX 头文件的层
 - SDK 中所有二值语义统一使用 `bool` / `true` / `false`，并包含 `<stdbool.h>`；不要用 `uint8_t`、`int` 或 `0/1` 表示布尔状态
 
+**驱动统一接口原则**：
+- 统一接口只固定“共同能力”和“单位语义”，不固定具体厂家的初始化配置结构
+- 如果不同厂家、协议或控制模式的配置差异较大，统一入口的 `init` 应使用 `const void* config`，由具体驱动在自身头文件中定义专属配置结构
+- `PortOps` 可以作为公共辅助类型复用，但是否使用、如何嵌入配置，由具体驱动决定
+- 协议专属能力不塞进统一接口，应放在具体驱动的特色入口中
+
 **另外**：
 - service 负责把 platform 能力注入 device，并完成系统能力的组合、缓存和安全策略
+- 完整工程可增加 `service/assemble/` 作为平台注入和系统组装入口，避免把底层绑定散落在 `main.c` 或 `app/` 中
 
 ---
 
@@ -104,7 +111,7 @@ My-Embedded-Project/
 
 ```bash
 # 先添加 submodule
-git submodule add https://github.com/Kaede-Rei/Embedded-Electronic-Control-Standard.git external/Embedded-Electronic-Control-Standard
+git submodule add https://github.com/AgroTech-SCAU/Embedded-Electronic-Control-Standard.git external/Embedded-Electronic-Control-Standard
 
 # 再进入 submodule，切到项目需要固定的 tag
 cd external/Embedded-Electronic-Control-Standard
@@ -198,7 +205,7 @@ chip SDK 仓库：保存某个芯片平台的 PortOps 适配、注意事项和�
 **例如 STM32 项目**：
 
 ```bash
-git submodule add https://github.com/Kaede-Rei/Embedded-Chip-STM32-HAL-SDK.git external/Embedded-Chip-STM32-HAL-SDK
+git submodule add https://github.com/<user-or-org>/Embedded-Chip-STM32-HAL-SDK.git external/Embedded-Chip-STM32-HAL-SDK
 
 cd external/Embedded-Chip-STM32-HAL-SDK
 git fetch --tags
@@ -224,12 +231,12 @@ git commit -m "chore(submodule): add stm32 hal chip sdk"
 ```text
 sdks/infra/
 ├── delay.c / delay.h
-├── status.h
 ├── matrix.c / matrix.h
 ├── pid.c / pid.h
 ├── protocol_parser.c / protocol_parser.h
 ├── log.c / log.h
-└── hfsm/
+├── hfsm/
+└── status.h              # 若暂未落地，应作为待补齐项追踪
 ```
 
 > 定位：与真实硬件尽量解耦的基础设施模块
@@ -248,17 +255,15 @@ sdks/domain/
 
 ```text
 sdks/device/
-├── bus_motor/
-│   ├── bus_motor.c / bus_motor.h
-│   └── dm_bus_motor.c / dm_bus_motor.h
-└── rgb_led/
-    ├── rgb_led.c / rgb_led.h
-    └── ws2812_rgb_led.c / ws2812_rgb_led.h
+├── bus_motor/            # 总线电机统一入口；具体实例按厂家独立配置
+├── bus_servo/            # 总线舵机统一入口；具体实例按协议独立配置
+├── imu/                  # IMU 统一入口；具体实例按芯片独立配置
+└── rgb_led/              # RGB 灯统一入口
 ```
 
-设备 SDK 必须通过 PortOps/注册函数与平台层对接，不应在 public header 中直接暴露 `stm32xxx_hal.h`、`hal_data.h` 等芯片头文件
+设备 SDK 必须通过 `init(config with PortOps)` 或等价注入方式与平台层对接，不应在 public header 中直接暴露 `stm32xxx_hal.h`、`hal_data.h` 等芯片头文件；统一接口不应强行固定具体厂家的 config 字段；配置差异明显时，统一入口使用 `const void* config`，具体驱动自行定义 `XxxConfig`
 
-`sdks/infra/status.h` 提供统一基础状态码、生命周期状态和字符串辅助，供新的 `device/service/infra` 模块优先复用
+`sdks/infra/status.h` 是推荐沉淀方向，用于统一基础状态码、生命周期状态和字符串辅助；若当前代码尚未同步该文件，应在 plan/issue 中作为待补齐项追踪
 
 ---
 

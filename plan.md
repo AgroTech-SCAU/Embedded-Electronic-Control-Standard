@@ -206,9 +206,11 @@ PortOps 是本标准实现平台解耦的核心机制
 
 需要统一规定：
 
-    PortOps 应作为 init config 的一部分传入
+    PortOps 优先随 init config 一次性传入
     避免 register_port() 与 init() 分离导致漏绑定
     device/infra 不直接持有 HAL/FSP/CubeMX 句柄
+    统一接口只固定共同能力，不固定具体厂家的 config 字段
+    多厂家/多协议统一入口优先采用 const void* config，由具体驱动定义 XxxConfig
     PortOps 函数指针命名应表达能力，而不是表达平台
     PortOps 返回值应统一使用 bool 或模块状态码
     PortOps 中断回调不得执行复杂控制逻辑
@@ -345,6 +347,7 @@ PortOps 是本标准实现平台解耦的核心机制
 
 计划事项：
 
+    [x] 在文档中明确统一入口不强制固定具体厂家 config 结构
     [ ] 建立 `config` 结构体规范
     [ ] 定义参数命名和单位规范
     [ ] 给出四舵轮底盘参数表示例
@@ -669,7 +672,7 @@ RoboMaster 体系的优势不在于某一个单独算法，而在于围绕真实
 当前已有：
 
     bus_motor
-    dm_bus_motor
+    dm_motor
 
 定位：
 
@@ -699,7 +702,7 @@ RoboMaster 体系的优势不在于某一个单独算法，而在于围绕真实
 
     [ ] 检查 bus_motor 生命周期接口
     [ ] 检查 bus_motor 状态码
-    [ ] 检查 dm_bus_motor 与通用 bus_motor 的边界
+    [ ] 检查 dm_motor 与通用 bus_motor 的边界
     [ ] 增加单电机 mock 示例
     [ ] 增加单达妙电机真实工程示例
 
@@ -748,7 +751,7 @@ RM 体系中常见电机：
 
 计划事项：
 
-    [ ] 完善 dm_bus_motor 文档
+    [ ] 完善 dm_motor 文档
     [ ] 建立 single_dm_motor_reference
     [ ] 增加 MIT 模式安全说明
     [ ] 增加 kp/kd 参数限制建议
@@ -779,7 +782,7 @@ RM 体系中常见电机：
 
 计划事项：
 
-    [ ] 增加 bus_servo SDK
+    [~] 统一 bus_servo 文档口径，代码按模块逐步同步
     [ ] 增加 pwm_servo SDK
     [ ] 增加 stepper_motor SDK 设计文档
     [ ] 增加 gripper_service 设计文档
@@ -891,7 +894,7 @@ RM 体系中常见电机：
     [ ] 增加 encoder SDK
     [ ] 增加 limit_switch SDK
     [ ] 增加 voltage/current sensor SDK
-    [ ] 增加 IMU SDK 设计文档
+    [~] 统一 IMU 文档口径，代码按模块逐步同步
     [ ] 增加 sensor timeout 与数据有效性规范
 
 ## 2.6 底盘地图
