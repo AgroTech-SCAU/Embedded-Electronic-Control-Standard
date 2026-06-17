@@ -36,6 +36,15 @@ void delay_ms_init(ms_t(*get_ms)(void)) {
 }
 
 /**
+ * @brief 获取当前毫秒数
+ * @return 当前毫秒数, 如果未初始化则返回 0
+ */
+ms_t delay_now_ms(void) {
+    if(delay_ops.get_ms == 0) return 0;
+    return delay_ops.get_ms();
+}
+
+/**
  * @brief 毫秒级阻塞延时
  * @param ms 延时毫秒数
  * @return None
@@ -85,6 +94,15 @@ bool delay_nb_ms(ms_t* start, ms_t interval_ms) {
  */
 void delay_us_init(us_t(*get_us)(void)) {
     delay_ops.get_us = get_us;
+}
+
+/**
+ * @brief 获取当前微秒数
+ * @return 当前微秒数, 如果未初始化则返回 0
+ */
+us_t delay_now_us(void) {
+    if(delay_ops.get_us == 0) return 0;
+    return delay_ops.get_us();
 }
 
 /**
