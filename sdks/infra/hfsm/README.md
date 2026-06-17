@@ -57,20 +57,6 @@ hfsm/
 | `hfsm_core.h / hfsm_core.c` | 最小状态机内核，负责事件队列、层级分发、状态切换、`entry/exit/action` 调度 |
 | `hfsm_config.h` | 配置状态数量、层级深度、事件队列长度、事件数据类型等 |
 
-推荐业务代码只包含：
-
-```c
-#include "hfsm.h"
-```
-
-如果你的工程把库放在 `infra/hfsm/` 下，也可以按工程 include path 写成：
-
-```c
-#include "hfsm/hfsm.h"
-```
-
-这只是头文件路径差异，不代表 HFSM 依赖某个固定目录结构
-
 ---
 
 ## 3. 分层设计
@@ -264,8 +250,6 @@ static void run_action(HfsmMachine* m) {
 
 ## 5. 最小使用示例
 
-下面示例只依赖 HFSM 库本身，不依赖任何当前工程模块
-
 ```c
 #include "hfsm.h"
 
@@ -451,7 +435,7 @@ void app_task_process(void) {
 
 ## 7. 层级状态使用范式
 
-下面是一个通用任务状态树示例，来自实际应用场景的抽象，但不绑定任何具体工程：
+下面是一个通用任务状态树示例：
 
 ```text
 Fault
