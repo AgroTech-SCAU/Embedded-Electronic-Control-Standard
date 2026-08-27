@@ -370,43 +370,44 @@ PortOps 是本标准实现平台解耦的核心机制
 
 计划事项：
 
-    [ ] 建立 `tests/` 或 `examples/test_*` 约定
+    [x] 建立测试资产目录约定：`examples/` 用于最小教学示例，`validation/` 用于真实硬件/集成验证，自动化逻辑测试后续统一进入 `tests/`
     [ ] 为 protocol_parser 增加测试输入样例
     [ ] 为 steer_wheel_kine 增加输入输出样例
     [ ] 为 bus_motor 增加 mock send/feedback 示例
     [ ] 为 fault_manager 增加 fault latch/clear 测试样例
 
-### 1.4.8 reference_projects 建设
+### 1.4.8 validation 真实集成验证建设
 
-标准仓库不能只提供 SDK，还需要提供真实参考工程
+标准仓库不能只提供 SDK，还需要提供可追溯的真实平台/硬件集成验证资产
 
-建议新增：
+统一放入：
 
-    reference_projects/
-    ├── single_bus_motor_reference/
-    ├── single_dm_motor_reference/
-    ├── four_swerve_chassis_reference/
-    ├── six_dof_arm_joint_reference/
-    ├── uart_protocol_bridge_reference/
-    └── safety_stop_reference/
+    validation/
+    ├── bus_motor_dm_stm32/
+    ├── four_swerve_chassis_stm32/        # 规划
+    ├── six_dof_arm_joint_stm32/          # 规划
+    ├── uart_protocol_bridge_<platform>/  # 规划
+    └── safety_stop_<platform>/           # 规划
 
-参考工程要求：
+validation 要求：
 
-    能说明使用哪些 SDK
-    能说明依赖哪个 chip SDK
+    能说明验证哪些正式 SDK
+    能说明具体控制板、执行机构与固件版本
+    能说明依赖哪个 chip SDK，或明确验证目录内最小 platform 适配
     能说明初始化顺序
     能说明控制周期
     能说明安全限制
-    能说明测试步骤
-    能说明预期现象
-    能说明常见故障
+    能说明测试步骤和通过标准
+    能说明预期现象与常见故障
+    优先直接引用根 sdks/，避免维护同名 SDK shadow copy
 
 计划事项：
 
-    [ ] 先建立 reference_projects 目录结构
-    [ ] 第一个参考工程选择 single_dm_motor_reference
-    [ ] 第二个参考工程选择 four_swerve_chassis_reference
-    [ ] 后续根据协会项目补 six_dof_arm_joint_reference
+    [x] 建立 validation 目录语义与 README
+    [x] 将 bus_motor + DM + STM32 实机工程迁移为 bus_motor_dm_stm32 验证资产
+    [ ] 将 validation 中仍存在的 infra/rgb_led 副本与正式 sdks 做差异审计后再决定迁移
+    [ ] 后续根据协会项目补 four_swerve_chassis_stm32
+    [ ] 后续根据协会项目补 six_dof_arm_joint_stm32
 
 ### 1.4.9 文档一致性与发布规范
 
@@ -418,6 +419,7 @@ PortOps 是本标准实现平台解耦的核心机制
     README 中列出的 SDK 必须与 sdks/ 实际内容一致
     文档中的接口名与代码一致
     examples 路径与实际路径一致
+    validation 路径、硬件说明与实际资产一致
     状态版本与 tag/release 一致
     安全提醒与实际 SDK 能力一致
 

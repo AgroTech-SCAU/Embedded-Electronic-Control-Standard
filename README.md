@@ -29,6 +29,8 @@ Status: Draft v0.2
 | `sdks/infra/` | 通用基础设施 SDK，例如 delay、matrix、PID、parser、HFSM、log |
 | `sdks/domain/` | 领域/算法 SDK，例如机械臂运动学、舵轮运动学 |
 | `sdks/device/` | 常用真实设备 SDK，例如 bus_motor、bus_servo、imu、rgb_led 等；具体代码以当前 `sdks/` 目录实际同步状态为准 |
+| `examples/` | 最小教学示例：用于说明标准、接口和模块组织方式 |
+| `validation/` | 真实平台/硬件集成验证资产，例如 STM32 + DM 电机验证工程 |
 
 ---
 
@@ -81,10 +83,12 @@ Embedded-Electronic-Control-Standard/
 ├── plan.md
 ├── 通用开发流文档.md
 ├── 团队协作开发文档.md
-└── sdks/
-    ├── infra/
-    ├── domain/
-    └── device/
+├── sdks/
+│   ├── infra/
+│   ├── domain/
+│   └── device/
+├── examples/              # 最小教学示例
+└── validation/            # 真实平台/硬件集成验证
 ```
 
 ### 4.2 成员项目如何引用本标准
@@ -187,6 +191,8 @@ git submodule update --remote --recursive
 ## 6. 芯片平台 SDK 的使用方式
 
 本仓库不直接内置 STM32、ESP32、Renesas、GD32 等具体芯片平台 SDK
+
+`validation/` 中允许为了复现实机验证保留最小板级 `platform/` 适配和 CubeMX 工程，但这些文件属于验证资产，不作为可复用 chip SDK 对外提供
 
 **原因**：
 

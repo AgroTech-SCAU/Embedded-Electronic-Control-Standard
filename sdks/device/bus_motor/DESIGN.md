@@ -1,4 +1,11 @@
-# bus_motor
+# bus_motor Design & Maintainer Guide
+
+> 本文面向 `bus_motor` SDK 维护者、厂家驱动开发者和需要理解内部语义的集成人员
+> 普通业务使用与首次接入请优先阅读 [`README.md`](README.md)
+> 本文件由原完整 `bus_motor` 文档迁移而来，用于保留架构、厂家适配、能力扩展与 Group 设计细节
+
+---
+
 
 `bus_motor` 是总线电机的统一能力接口
 

@@ -47,7 +47,7 @@ sdks/
 - 涉及真实设备时必须提供 stop、timeout、fault 或等价安全路径
 - device 需要底层能力时优先通过 `init(config with PortOps)` 接入
 - infra 保持层独立；若需要时间、输出流等外部能力，应通过配置/PortOps 接收由 `service` 注入的能力
-- 可独立测试的模块应提供最小 example 或测试入口
+- 可独立说明用法的模块应提供最小 example；依赖真实硬件的长期验证资产应放入 `validation/`，不要混入教学示例
 - 修改 public API 时同步更新 README、示例和 `plan.md`
 
 ---
