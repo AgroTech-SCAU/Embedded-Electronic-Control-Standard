@@ -35,6 +35,7 @@ static const DmMotorBinding s_motor_bindings[] = {
                 .major = DM_MOTOR_FIRMWARE_V4,
             },
             .default_mode = DM_MOTOR_MODE_POS_VEL,
+            .feedback_timeout_ms = 100u,
         },
     },
 };

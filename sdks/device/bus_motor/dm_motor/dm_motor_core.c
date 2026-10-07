@@ -97,6 +97,7 @@ BusMotorStatus dm_motor_registry_register(DmMotorRegistry* registry, BusMotorId 
     instance_ptr->motor_id = motor_id;
     instance_ptr->can_id = config->can_id;
     instance_ptr->master_id = config->master_id;
+    instance_ptr->feedback_timeout_ms = config->feedback_timeout_ms;
     instance_ptr->model = config->model;
     instance_ptr->firmware = config->firmware;
     instance_ptr->limits = spec->limits;

@@ -139,6 +139,7 @@ static BusMotorProfile bus_motor_profile_current_impl(BusMotorId id);
  * @return 电机状态码
  */
 static BusMotorStatus bus_motor_feedback_all_impl(BusMotorId id, BusMotorFeedback* feedback);
+static BusMotorStatus bus_motor_feedback_current_impl(BusMotorId id, float* current);
 
 /**
  * @brief 获取逻辑电机位置反馈
@@ -303,6 +304,7 @@ const BusMotorInterface bus_motor = {
         .velocity = bus_motor_feedback_velocity_impl,
         .torque = bus_motor_feedback_torque_impl,
         .temperature = bus_motor_feedback_temperature_impl,
+        .current = bus_motor_feedback_current_impl,
     },
     .group = {
         .bind = bus_motor_group_bind_impl,
@@ -1030,4 +1032,15 @@ static BusMotorStatus bus_motor_cmd_impl(BusMotorId id, BusMotorCommand command)
     }
 
     return entry->driver->command(entry->instance, command);
+}
+
+/** @brief 读取经确认的电流反馈 */
+static BusMotorStatus bus_motor_feedback_current_impl(BusMotorId id, float* current) {
+    BusMotorFeedback feedback;
+    if(current == 0) return MOTOR_STATUS_INVALID_PARAM;
+    BusMotorStatus status = bus_motor_feedback_all_impl(id, &feedback);
+    if(status != MOTOR_STATUS_OK) return status;
+    if((feedback.valid & BUS_MOTOR_FEEDBACK_CURRENT) == 0u) return MOTOR_STATUS_UNSUPPORTED;
+    *current = feedback.current;
+    return MOTOR_STATUS_OK;
 }

@@ -112,6 +112,7 @@ typedef struct {
     DmMotorModel model;           /**< 电机型号 */
     DmMotorFirmwareInfo firmware; /**< 固件版本 */
     DmMotorMode default_mode;     /**< 绑定时的硬件控制模式 */
+    uint32_t feedback_timeout_ms; /**< 0 保留原行为，非零启用反馈超时检查 */
 } DmMotorConfig;
 
 /**
@@ -138,6 +139,7 @@ typedef struct {
     bool has_feedback;                   /**< 是否收到有效反馈 */
     BusMotorFeedback feedback;           /**< 最近一次反馈 */
     uint32_t last_rx_ms;                 /**< 最近一次反馈时间 */
+    uint32_t feedback_timeout_ms;       /**< 反馈超时阈值 */
     uint32_t rx_count;                   /**< 已接收反馈帧数量 */
     volatile uint32_t mode_ack_sequence; /**< 模式应答序号 */
     volatile uint32_t mode_ack_value;    /**< 最近一次模式应答值 */

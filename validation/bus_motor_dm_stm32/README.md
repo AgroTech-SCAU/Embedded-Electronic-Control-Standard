@@ -241,3 +241,25 @@ RGB 状态：
 > 新成员应该如何用最少代码理解某个接口？
 
 前者属于 `validation/`，后者才属于 `examples/`
+
+## 本次构建与硬件 Gate
+
+正式 DM 源码已由主机 cc 直接编译并执行反馈 torque 超时和 disable 协议回归，命令入口如下
+
+```bash
+sh validation/bus_motor_dji/build.sh /tmp/bus-motor-validation
+```
+
+本目录源码配置 feedback_timeout_ms 为 100，运动命令前检查新鲜反馈，NO_FEEDBACK 或 TIMEOUT 锁存 fault 并请求 disable
+
+本包未包含完整 CubeMX 生成的 main.h FDCAN HAL CMSIS 启动文件 链接脚本和 IDE 构建配置，因此未声称完整 MCU 固件编译通过
+
+恢复完整板级工程后直接加入下面的 source manifest，不复制正式 SDK
+
+```make
+include /absolute/path/to/Standard/validation/bus_motor_dm_stm32/sdk-sources.mk
+C_SOURCES += $(BUS_MOTOR_DM_SOURCES)
+C_INCLUDES += $(BUS_MOTOR_DM_INCLUDES)
+```
+
+当前 DM 真机模式切换 连续反馈 超时 disable 和故障清除 Gate 均未在本次执行

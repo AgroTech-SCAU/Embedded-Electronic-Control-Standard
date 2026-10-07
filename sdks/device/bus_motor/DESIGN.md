@@ -2592,3 +2592,27 @@ Command 表示当前控制目标
 业务必须依赖的能力在初始化阶段通过 `require()` 验证
 
 硬件不能满足公共语义时明确返回 `MOTOR_STATUS_UNSUPPORTED`，不做静默降级
+
+## DJI Group 与电流语义补充
+
+DJI 以厂家驱动注册到公共 Registry，不维护第二套 bus_motor 或 pending_current_mask
+
+每个实例保存实际型号 物理 CAN ID 限流 PID 和反馈时基，逻辑角色和 CAN 外设均由项目 assemble 指定
+
+Group 在同一 bank 内先校验全部命令，再计算并提交一帧，非有限目标和超限目标返回 INVALID_PARAM
+
+SYNCHRONIZED 和 ATOMIC 只覆盖单 bank 的单 CAN 帧，跨 bank 不可声称原子发送
+
+CURRENT_Q 命令使用 A，CURRENT_RAW 反馈表示厂家原始值，CURRENT 反馈需显式确认换算，TORQUE 只表示 N*m
+
+C610 的保留字节不标记为温度或故障，发送失败和超时会软件失能但不能证明电调实际断电
+
+与模式切换有关的 DM POS_VEL 和 POS_FORCE 继续留在厂家扩展，不增加通用复合 Profile
+
+驱动状态由主循环串行访问，ISR 接收通过项目队列交接，不在公共 SDK 引入 HAL 临界区或芯片句柄
+
+速度 PID 与旧实现的单位和周期定义不同，参数必须由集成人员重新确认，调用次数不用于隐式凑齐四路命令
+
+发送失败为所有已绑定 bank 记录待补发零帧，update 持续重试，成功提交前不允许重新使能
+
+PID 中间值使用 double 防止极小周期引发 float 溢出，输出仍按配置限流，配置合法不代表已完成实机整定

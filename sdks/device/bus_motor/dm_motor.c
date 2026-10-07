@@ -154,6 +154,11 @@ BusMotorStatus dm_motor_bind(BusMotorId motor_id, const DmMotorConfig* config) {
         return MOTOR_STATUS_NOT_INITIALIZE;
     }
 
+    if(config == 0 || config->feedback_timeout_ms >= 0x80000000u ||
+       (config->feedback_timeout_ms != 0u && s_ops->now_ms == 0)) {
+        return MOTOR_STATUS_INVALID_PARAM;
+    }
+
     status = dm_motor_registry_register(&s_registry, motor_id, config, &instance, &context);
     if(status != MOTOR_STATUS_OK) {
         return status;
@@ -343,7 +348,7 @@ BusMotorStatus dm_motor_set_pos_force(BusMotorId motor_id, float position, uint1
     if(context == 0) {
         return MOTOR_STATUS_NOT_FOUND;
     }
-    if(context->mode != DM_MOTOR_MODE_POS_FORCE || velocity > DM_MOTOR_POS_FORCE_VEL_MAX ||
+    if(!isfinite(position) || context->mode != DM_MOTOR_MODE_POS_FORCE || velocity > DM_MOTOR_POS_FORCE_VEL_MAX ||
        current > DM_MOTOR_POS_FORCE_CURRENT_MAX) {
         return MOTOR_STATUS_INVALID_PARAM;
     }
@@ -637,6 +642,16 @@ static BusMotorStatus dm_motor_driver_command(uint16_t instance, BusMotorCommand
         return MOTOR_STATUS_NOT_FOUND;
     }
 
+    if(command.type == BUS_MOTOR_CMD_IMPEDANCE) {
+        imp = &command.data.imp;
+        if(!isfinite(imp->position) || !isfinite(imp->velocity) || !isfinite(imp->kp) ||
+           !isfinite(imp->kd) || !isfinite(imp->torque)) return MOTOR_STATUS_INVALID_PARAM;
+    }
+    else if(command.type == BUS_MOTOR_CMD_POSITION || command.type == BUS_MOTOR_CMD_VELOCITY ||
+            command.type == BUS_MOTOR_CMD_TORQUE) {
+        if(!isfinite(command.data.scalar)) return MOTOR_STATUS_INVALID_PARAM;
+    }
+
     switch(command.type) {
         case BUS_MOTOR_CMD_POSITION:
             if(context->mode != DM_MOTOR_MODE_POS_VEL) {
@@ -699,6 +714,11 @@ static BusMotorStatus dm_motor_driver_feedback(uint16_t instance, BusMotorFeedba
     }
     if(context->has_feedback == false) {
         return MOTOR_STATUS_NO_FEEDBACK;
+    }
+
+    if(context->feedback_timeout_ms != 0u &&
+       (uint32_t)(s_ops->now_ms() - context->last_rx_ms) >= context->feedback_timeout_ms) {
+        return MOTOR_STATUS_TIMEOUT;
     }
 
     *feedback = context->feedback;

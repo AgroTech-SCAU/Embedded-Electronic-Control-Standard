@@ -266,6 +266,15 @@ static bool motor_test_recover_fault(void) {
 }
 
 static BusMotorStatus motor_test_send_command(void) {
+    if(s_test_mode != MOTOR_TEST_MODE_DISABLED) {
+        BusMotorFeedback feedback;
+        BusMotorStatus status = bus_motor.feedback.all((BusMotorId)MOTOR_TEST_ID_MAIN, &feedback);
+        if(status != MOTOR_STATUS_OK) {
+            s_fault_latched = true;
+            return status;
+        }
+    }
+
     /* 失能模式不发送运动目标 其余模式均使用同一业务逻辑标识 */
     switch(s_test_mode) {
         case MOTOR_TEST_MODE_POS_VEL:

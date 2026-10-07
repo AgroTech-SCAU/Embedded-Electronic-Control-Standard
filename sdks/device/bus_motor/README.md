@@ -240,7 +240,7 @@ bus_motor.basic.brake(MOTOR_ARM_J1);
 bus_motor.profile.supports(MOTOR_ARM_J1, profile);
 bus_motor.profile.require(MOTOR_ARM_J1, required_mask);
 bus_motor.profile.activate(MOTOR_ARM_J1, profile);
-bus_motor.profile.current(MOTOR_ARM_J1, &profile);
+profile = bus_motor.profile.current(MOTOR_ARM_J1);
 ```
 
 推荐用法：
@@ -464,3 +464,73 @@ service/assemble
 ```
 
 **普通业务依赖公共语义；真实硬件差异留在 assemble 与厂家驱动**
+
+## DJI 接入与反馈电流
+
+唯一正式实现位于本目录，旧 bus_motor 发布副本已删除，旧接口需迁移到 Registry Profile Command Group
+
+DJI 支持 M2006/C610 和 M3508/C620，实例池由 assemble 静态提供
+
+```c
+#include "bus_motor/dji_motor.h"
+static DjiMotorInstance motors[4];
+static const BusMotorId ids[4] = { 101, 102, 103, 104 };
+/* bus_motor.init() 只在整套驱动绑定之前调用一次 */
+bus_motor.init();
+dji_motor_init(&ops, motors, 4);
+for(unsigned i = 0; i < 4; ++i) {
+    DjiMotorConfig config = {
+        .can_id = i + 1,
+        .model = DJI_MOTOR_MODEL_M2006,
+        .feedback_timeout_ms = 100,
+        .current_limit_a = 1,
+        .velocity_limit_rad_s = 10,
+        .control_period_s = 0.01f,
+        .kp = 0.1f,
+        .feedback_current_a_per_lsb = 0,
+    };
+    dji_motor_bind(ids[i], &config);
+}
+bus_motor.group.bind(1, ids, 4);
+/* 主循环解析四路新鲜反馈后再激活和使能 */
+bus_motor.group.activate(1, BUS_MOTOR_PROFILE_CURRENT_Q);
+bus_motor.group.enable(1);
+BusMotorCommand commands[4] = {
+    BUS_CMD_CURRENT_Q(0.1f), BUS_CMD_CURRENT_Q(-0.1f),
+    BUS_CMD_CURRENT_Q(0.1f), BUS_CMD_CURRENT_Q(-0.1f),
+};
+bus_motor.group.cmd(1, commands, 4, BUS_MOTOR_GROUP_POLICY_ATOMIC);
+```
+
+以上为调用顺序示意，实际工程必须逐条处理返回值，完整失败处理入口见 [DJI validation](../../../validation/bus_motor_dji/README.md)
+
+- CURRENT_Q 命令使用 A，VELOCITY 命令使用减速箱输出轴 rad/s
+- 速度 PID 在每次命令调用时更新，调用周期必须匹配 control_period_s，参数不沿用旧实现的 rpm 和原始电流单位
+- 一次同 bank Group 命令发送一帧，ID 1-4 对应 0x200，ID 5-8 对应 0x1FF
+- SYNCHRONIZED 和 ATOMIC 要求同 bank 且最多四台，跨 bank 返回 UNSUPPORTED，ATOMIC 指单帧的软件提交，不保证机械动作同时生效
+- DEFAULT 可退回逐台发送，不提供跨 bank 原子性
+- Group 未涉及的同 bank 电机保留当前有效输出，未绑定或软件失能的槽位写零
+- stop 立即清零当前电机电流和 PID，disable 进一步锁存软件失能，两者不等于断电或机械制动，brake 返回 UNSUPPORTED
+- 收到反馈后才允许 enable 和运动命令，每个主循环周期必须调用 dji_motor_update，超时后清零并锁存软件失能，反馈恢复不自动恢复输出
+- send 失败会清除全部 DJI 缓存输出并软件失能，返回 PORT_ERROR，update 会重试所有已绑定 bank 的安全零帧，零帧未提交成功前禁止重新 enable，硬件是否实际停止仍需独立确认
+- 公共注册表和厂家驱动只能在输出已安全停止后重新初始化，实例池和 ops 必须保持整个使用期有效
+- 驱动调用必须串行，CAN ISR 只排队帧，主循环验证标准数据帧和 DLC=8 后解析，不能并发修改反馈和命令缓存
+- 位置是首帧起的输出轴相对累计角度，机械回零和安装方向仍归项目负责，unwrap 要求相邻有效反馈间转子转动小于半圈
+
+反馈新增 CURRENT_RAW 和 CURRENT 两种有效位
+
+current_raw 是厂家有符号原始值，不是 N*m，也不能默认认定为 A
+
+current 只在调用者有确认换算依据并配置 feedback_current_a_per_lsb 时标记有效，不能用命令缩放系数自动推断反馈缩放
+
+DJI 不支持 torque Profile 且不设置 TORQUE 有效位，feedback.torque 返回 UNSUPPORTED
+
+C610 反馈的 byte 6 和 byte 7 为保留位，不作为温度或错误码，C620 的 byte 6 为电机温度
+
+DM 继续报告协议定义的 N*m torque，新增电流字段默认无效，POS_VEL 仍通过 dm_motor_set_pos_vel 厂家扩展接口调用
+
+DM 可通过 DmMotorConfig.feedback_timeout_ms 启用反馈读取的超时检查，0 保留原行为，驱动不会自动关闭实机，项目必须对 NO_FEEDBACK 和 TIMEOUT 执行 disable，现有 DM validation 已配置 100 ms 并锁存错误
+
+BusMotorFeedback 和 BusMotorFeedbackInterface 有新增成员，所有调用者必须重新编译，不能混用旧二进制 ABI
+
+协议依据见 [DJI 验证说明](../../../validation/bus_motor_dji/README.md)

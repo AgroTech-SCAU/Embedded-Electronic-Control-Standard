@@ -152,7 +152,7 @@ typedef struct {
     ((BusMotorCommand){ BUS_MOTOR_CMD_IMPEDANCE, { .imp = { (position), (velocity), (kp), (kd), (torque) } } })
 
 /**
- * @brief 构造 Q 轴电流控制命令
+ * @brief 构造 Q 轴电流控制命令，单位 A
  */
 #define BUS_CMD_CURRENT_Q(value) ((BusMotorCommand){ BUS_MOTOR_CMD_CURRENT_Q, { .scalar = (value) } })
 
@@ -162,7 +162,7 @@ typedef struct {
 #define BUS_CMD_VOLTAGE_Q(value) ((BusMotorCommand){ BUS_MOTOR_CMD_VOLTAGE_Q, { .scalar = (value) } })
 
 /**
- * @brief 构造 DQ 电流控制命令
+ * @brief 构造 DQ 电流控制命令，单位 A
  */
 #define BUS_CMD_CURRENT_DQ(d, q) ((BusMotorCommand){ BUS_MOTOR_CMD_CURRENT_DQ, { .dq = { (d), (q) } } })
 
@@ -184,6 +184,8 @@ typedef enum {
     BUS_MOTOR_FEEDBACK_VELOCITY = 1u << 1,
     BUS_MOTOR_FEEDBACK_TORQUE = 1u << 2,
     BUS_MOTOR_FEEDBACK_TEMPERATURE = 1u << 3,
+    BUS_MOTOR_FEEDBACK_CURRENT = 1u << 4,     /**< 电流 A，需确认换算 */
+    BUS_MOTOR_FEEDBACK_CURRENT_RAW = 1u << 5, /**< 厂家原始值，不能当成 N*m */
 } BusMotorFeedbackValid;
 
 /**
@@ -204,6 +206,8 @@ typedef struct {
     float position;                  /**< 当前位置，单位 rad */
     float velocity;                  /**< 当前速度，单位 rad/s */
     float torque;                    /**< 当前扭矩，单位 N*m */
+    float current;                   /**< 当前电流，单位 A，仅 CURRENT 有效时使用 */
+    int16_t current_raw;             /**< 原始电流反馈，仅 CURRENT_RAW 有效时使用 */
     BusMotorTemperature temperature; /**< 温度反馈 */
 } BusMotorFeedback;
 
@@ -328,6 +332,9 @@ typedef struct {
      * @return 电机状态码
      */
     BusMotorStatus (*temperature)(BusMotorId id, BusMotorTemperature* temperature);
+
+    /** @brief 获取经确认换算的电流，单位 A */
+    BusMotorStatus (*current)(BusMotorId id, float* current);
 } BusMotorFeedbackInterface;
 
 /**
