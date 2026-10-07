@@ -218,9 +218,3 @@ void attitude_update_from_sample(const ImuSample* sample) {
 - 如果使用阻塞实例能读到数据而异步实例读不到，优先检查 `transmit_receive_dma()`、SPI 句柄匹配和中断引脚映射
 - 静止水平放置时，`acc.z` 应接近 `9.8 m/s^2`，`roll/pitch` 应接近 0
 
-
-## 步骤 3 回归证据
-
-validation/longinus_sdk 直接编译正式 SDK 并逐个独立检查相关公共头文件，IMU RGB delay log 基础接口回归通过，未修改本模块公共 API 或实现
-
-该证据仅来自主机编译与模拟端口，真实 MCU 时基 传感器 灯带和发送路径仍未验证

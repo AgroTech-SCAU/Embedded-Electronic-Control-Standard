@@ -14,7 +14,7 @@ domain 模块只描述数学模型、坐标系、机构参数、运动学和控�
 
 | 模块 | 文件 | 说明 |
 |---|---|---|
-| six_dof_arm_kine | `six_dof_arm_kine.h` / `six_dof_arm_kine.c` | 六轴串联机械臂 FK/IK、RPY/四元数转换 |
+| serial_arm | `serial_arm/` | 串联臂通用与五轴六轴运动学，本轮未专项验证 |
 | steer_wheel_kine | `steer_wheel_kine.h` / `steer_wheel_kine.c` | 四舵轮底盘正逆运动学 |
 
 ---
@@ -84,3 +84,5 @@ IK 采用 vx_i = vx - wz*y_i 与 vy_i = vy + wz*x_i，速度上限按统一比�
 模型与输入须有限，结果无法表示为 float 时返回 INVALID_PARAM，错误不提交部分解算结果，安装方向 偏置和历史编号修正由项目维护
 
 主机验证见 validation/longinus_sdk，不包含机器人机械补偿或安装方向校验
+
+模块成熟度以 [module-status](../../docs/module-status.md) 为准，目录存在不代表已完成真机验收

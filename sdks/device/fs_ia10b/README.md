@@ -35,4 +35,3 @@ valid 仅表示曾收到有效数据，业务必须使用 is_online 判断新鲜
 
 零配置选择帧超时 100 ms 和恢复间隔 200 ms，无有效帧的冷启动与断联会按恢复间隔重启，明确 UART 错误和启动失败可立即由 maintain 重试
 
-主机协议与模拟端口证据见 [Longinus SDK 验证](../../../validation/longinus_sdk/README.md)，MCU 接收 断联 冷启动 UART 错误恢复仍待真机验证

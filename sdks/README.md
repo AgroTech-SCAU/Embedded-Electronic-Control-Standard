@@ -1,65 +1,33 @@
-# sdks/ 通用 SDK 说明
+# 公共 SDK 接入
 
-> `sdks/` 保存可以被成员项目复用的通用模块；项目通过 submodule 引入本仓库后，按需把对应模块加入自己的工程
+按需编译正式源文件，通过项目 assemble 注入外部能力，禁止复制 SDK 到项目或 validation 维护第二份实现
 
----
+| 目录 | 已包含模块 |
+|---|---|
+| infra | delay log PID matrix protocol_parser HFSM |
+| domain | steer_wheel_kine 与 serial_arm 系列运动学 |
+| device | bus_motor FS-iA10B IMU RGB bus_servo |
 
-## 1. 目录结构
+成熟度和验证范围见 [模块状态](../docs/module-status.md)，层级依赖见 [架构](../docs/architecture.md)
 
-```text
-sdks/
-├── infra/     # 基础设施 SDK：PID、矩阵、协议解析、HFSM、delay、status 等
-├── domain/    # 领域算法 SDK：运动学、机构模型、坐标变换等
-└── device/    # 设备 SDK：电机、舵机、编码器、IMU、通信设备等
-```
+## 接入顺序
 
----
+1. submodule 固定项目负责人确认的 Tag 或 commit
+2. 按模块头文件选取源码和 include 根目录
+3. 项目 platform 实现端口，assemble 提供配置与存储
+4. 检查初始化返回值，完成单设备低输出验证
+5. service 接管错误 超时 Stop 和人工恢复，app 调用 service
 
-## 2. 分层边界
+| 模块 | 接入注意 |
+|---|---|
+| bus_motor | 初始化公共 registry，再初始化厂家驱动并绑定逻辑 ID，公共接口不预设 CAN 分配 |
+| FS-iA10B | 显式实例与 context PortOps，UART 回调路由到实例，主循环定期 maintain |
+| IMU | 门面绑定具体驱动，BMI088 注入 SPI CS 时基和可选 DMA 完成路径 |
+| RGB | 门面绑定 WS2812，提供颜色与发送缓存，异步传输需完成通知 |
+| delay | 分别注入毫秒和微秒时钟，时基一致性由平台保证 |
+| log | 注入 write，明确同步复制或异步持有缓存的语义 |
+| steer_wheel_kine | 使用固定右手坐标和轮序，安装符号与偏置在项目侧处理 |
 
-| 目录 | 关注点 | 允许依赖 | 不应依赖 |
-|---|---|---|---|
-| `infra/` | 通用工具、状态机、解析器、控制器、统一状态码 | 标准 C、由上层注入的外部能力接口 | 任意项目层、HAL/FSP/CubeMX |
-| `domain/` | 数学模型、运动学、坐标系、限幅 | `infra/`、标准 C 数学库 | 真实设备、CAN/UART/GPIO、HAL/FSP/CubeMX |
-| `device/` | 真实设备命令、反馈、超时、安全停止 | `infra/`、PortOps | app 业务、domain、平台句柄、芯片头文件 |
+DM DJI FS-iA10B 的构建清单位于各自 validation 目录，include 根目录按清单加入，不使用删除的项目内 SDK 搜索路径
 
-正式 SDK 只维护 `infra / domain / device`
-
-成员项目自己维护 `app`、`service`、`service/assemble`、`platform`，平台能力由项目 assemble 注入，不建立独立 Chip SDK
-
-架构权威入口见 [architecture](../docs/architecture.md)，协作权威入口见 [CONTRIBUTING](../.github/CONTRIBUTING.md)
-
----
-
-## 3. 推荐接入流程
-
-1. 在成员项目中通过 submodule 引入本仓库
-2. 从 `sdks/` 中选择需要的模块
-3. 将模块加入项目构建系统
-4. 在 service init 中组装 PortOps 或 adapter，并把 platform 能力注入 device
-5. 调用 SDK 的 init 接口完成绑定
-6. 先做 PC/mock 或单设备低速测试
-7. 再接入 app 任务流
-
----
-
-## 4. 编写新 SDK 的基本要求
-
-- public header 不包含芯片平台头文件
-- public API 明确错误码、配置结构、生命周期和单位
-- 二值语义必须使用 `bool` / `true` / `false`，并在使用处包含 `<stdbool.h>`；不要用 `uint8_t`、`int` 或 `0/1` 表示布尔状态
-- 涉及真实设备时必须提供 stop、timeout、fault 或等价安全路径
-- device 需要底层能力时优先通过 `init(config with PortOps)` 接入
-- infra 保持层独立；若需要时间、输出流等外部能力，应通过配置/PortOps 接收由 `service` 注入的能力
-- 可独立说明用法的模块应提供最小 example；依赖真实硬件的长期验证资产应放入 `validation/`，不要混入教学示例
-- 修改 public API 时同步更新 README、示例和 `plan.md`
-
----
-
-## 5. 示例参考
-
-- `sdks/device/bus_motor/`：电机统一接口、入口单例、PortOps 和达妙电机实例
-- `sdks/infra/log.h` / `sdks/infra/log.c`：可替换输出端口的轻量日志接口
-- `sdks/infra/status.h`：统一状态码、生命周期状态和 X-Macro 字符串辅助
-- `sdks/device/rgb_led/`：RGB 灯统一接口，当前包含 WS2812/NeoPixel 实例
-- `examples/module_design/portops_motor_device/`：从需求、接口、mock port 到 service 绑定的贯穿式示例
+当前公共头文件只提供模块自己的状态码，不提供全仓库统一状态头文件

@@ -64,9 +64,3 @@ InfraStatus infra_update(Infra* self);
 - error code table helper
 - unit test scaffold
 
-
-## 步骤 3 回归证据
-
-validation/longinus_sdk 直接编译正式 SDK 并逐个独立检查相关公共头文件，IMU RGB delay log 基础接口回归通过，未修改本模块公共 API 或实现
-
-该证据仅来自主机编译与模拟端口，真实 MCU 时基 传感器 灯带和发送路径仍未验证
