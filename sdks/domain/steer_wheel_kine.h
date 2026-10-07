@@ -4,6 +4,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/* Right-handed frame: +x forward, +y left, +z up, +wz counterclockwise
+ * Wheel order FL FR RR RL, positions (+L/2,+W/2), (+L/2,-W/2),
+ * (-L/2,-W/2), (-L/2,+W/2), angles rad from +x toward +y
+ * Mechanical installation signs and offsets belong in project assemble */
+
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
 /**

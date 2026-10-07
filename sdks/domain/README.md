@@ -67,3 +67,20 @@ domain 模块只描述数学模型、坐标系、机构参数、运动学和控�
 - ackermann kinematics
 - wheel-rail chassis model
 - unit conversion helper
+
+## 舵轮固定约定
+
+右手坐标系 +x 前 +y 左 +z 上 +wz 逆时针，舵角从 +x 向 +y 为正，轮序 FL FR RR RL
+
+| 轮 | x | y |
+|---|---|---|
+| FL | +length/2 | +width/2 |
+| FR | +length/2 | -width/2 |
+| RR | -length/2 | -width/2 |
+| RL | -length/2 | +width/2 |
+
+IK 采用 vx_i = vx - wz*y_i 与 vy_i = vy + wz*x_i，速度上限按统一比例缩放，零速度保留当前舵角
+
+模型与输入须有限，结果无法表示为 float 时返回 INVALID_PARAM，错误不提交部分解算结果，安装方向 偏置和历史编号修正由项目维护
+
+主机验证见 validation/longinus_sdk，不包含机器人机械补偿或安装方向校验
