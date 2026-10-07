@@ -6,6 +6,11 @@
 
 > AgroTech 协会嵌入式电控开发标准：用于统一电控项目的目录分层、开发顺序、SDK 复用方式、Git/GitHub 协作流程、芯片平台适配方式和安全调试规范
 
+> [!IMPORTANT]
+> 参与开发前阅读 [协作指南](.github/CONTRIBUTING.md)
+> Issue → Branch → Commit → Push → Pull Request → 项目负责人 Merge
+> 正式 SDK 仅包含 infra、domain、device，app、service、service/assemble、platform 由成员项目维护
+
 ---
 
 ## 1. 当前状态
@@ -23,9 +28,11 @@ Status: Draft v0.2
 | 文件/目录 | 作用 |
 |---|---|
 | `README.md` | 总览、快速开始、submodule 使用方式、仓库结构说明 |
-| `plan.md` | 标准建设计划、阶段目标、后续要补齐的内容 |
-| `通用开发流文档.md` | 架构分层、开发顺序、模块边界、安全约束 |
-| `团队协作开发文档.md` | Git/GitHub、分支、commit、PR、issue、submodule 协作规范 |
+| [docs/步骤.md](docs/步骤.md) | 当前实施计划与步骤完成状态 |
+| [plan.md](plan.md) | 历史建设路线与后续参考 |
+| [docs/architecture.md](docs/architecture.md) | 架构分层、公共 SDK 边界、PortOps、assemble 和安全约束 |
+| [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) | 唯一协作规范入口 |
+| [.github/rulesets/README.md](.github/rulesets/README.md) | main 保护规则导入与权限说明 |
 | `sdks/infra/` | 通用基础设施 SDK，例如 delay、matrix、PID、parser、HFSM、log |
 | `sdks/domain/` | 领域/算法 SDK，例如机械臂运动学、舵轮运动学 |
 | `sdks/device/` | 常用真实设备 SDK，例如 bus_motor、bus_servo、imu、rgb_led 等；具体代码以当前 `sdks/` 目录实际同步状态为准 |
@@ -36,38 +43,13 @@ Status: Draft v0.2
 
 ## 3. 核心分层标准
 
-**AgroTech 协会嵌入式电控工程统一采用以下从上到下的分层结构**：
+成员项目采用 `app / service / device / domain / infra / platform` 六层架构
 
-```text
-src/
-├── app/        # 1. 应用层：任务入口、业务流程、状态机编排、整机逻辑
-├── service/    # 2. 服务层：组合 device + domain + infra，形成系统能力
-├── device/     # 3. 设备层：真实设备 SDK、设备协议、反馈缓存、设备抽象
-├── domain/     # 4. 领域层：运动学、控制模型、机构解算、纯算法模型
-├── infra/      # 5. 基础设施层：PID、滤波、矩阵、协议解析、HFSM、CRC、容器
-└── platform/   # 6. 平台层：芯片/HAL/FSP/CubeMX 外设适配、CAN/UART/PWM/GPIO/Tick
-```
+Standard 只维护公共 SDK 三层 `infra / domain / device`，成员项目自己维护 `app / service / service/assemble / platform`
 
-**基本依赖规则**：
+项目 `service/assemble` 将 platform 的 CAN/UART/Tick 等能力以 PortOps 或等价依赖注入方式绑定到公共 SDK，不把 HAL 句柄、安装补偿或比赛业务写入 SDK
 
-- 下层不得依赖上层
-- app 只依赖 `service/`
-- service 可依赖 `device/domain/infra/platform`，并在自身 init 中完成 platform 对 device 的注入与组装
-- device 只依赖 `infra/`，通过 PortOps 接收 service 注入的平台能力
-- domain 只依赖 `infra/`
-- infra 不依赖任何项目层；如需时间、锁、输出流等能力，应通过配置/PortOps 接收由 `service` 注入的外部能力
-- platform 是唯一允许直接包含 HAL/FSP/CMSIS/CubeMX 头文件的层
-- SDK 中所有二值语义统一使用 `bool` / `true` / `false`，并包含 `<stdbool.h>`；不要用 `uint8_t`、`int` 或 `0/1` 表示布尔状态
-
-**驱动统一接口原则**：
-- 统一接口只固定“共同能力”和“单位语义”，不固定具体厂家的初始化配置结构
-- 如果不同厂家、协议或控制模式的配置差异较大，统一入口的 `init` 应使用 `const void* config`，由具体驱动在自身头文件中定义专属配置结构
-- `PortOps` 可以作为公共辅助类型复用，但是否使用、如何嵌入配置，由具体驱动决定
-- 协议专属能力不塞进统一接口，应放在具体驱动的特色入口中
-
-**另外**：
-- service 负责把 platform 能力注入 device，并完成系统能力的组合、缓存和安全策略
-- 完整工程可增加 `service/assemble/` 作为平台注入和系统组装入口，避免把底层绑定散落在 `main.c` 或 `app/` 中
+完整依赖规则和设计方法见 [架构说明](docs/architecture.md)
 
 ---
 
@@ -75,14 +57,18 @@ src/
 
 ### 4.1 标准仓库自身
 
-**本仓库自身保存**：
+**本仓库自身保存**
 
 ```text
 Embedded-Electronic-Control-Standard/
 ├── README.md
 ├── plan.md
-├── 通用开发流文档.md
-├── 团队协作开发文档.md
+├── docs/
+│   ├── architecture.md
+│   └── 步骤.md
+├── .github/              # Issue Forms、PR、CONTRIBUTING、Ruleset
+├── .githooks/            # 本地防误操作提醒
+├── setup-scripts/
 ├── sdks/
 │   ├── infra/
 │   ├── domain/
@@ -93,14 +79,13 @@ Embedded-Electronic-Control-Standard/
 
 ### 4.2 成员项目如何引用本标准
 
-**成员自己的项目建议把本仓库作为 submodule 放在 `external/` 下**：
+**成员自己的项目建议把本仓库作为 submodule 放在 `external/` 下**
 
 ```text
 My-Embedded-Project/
 ├── README.md
 ├── external/
-│   ├── Embedded-Electronic-Control-Standard/   # submodule，本仓库
-│   └── Embedded-Chip-STM32-HAL-SDK/        	# 可选，按平台添加
+│   └── Embedded-Electronic-Control-Standard/   # submodule，本仓库
 ├── src/
 │   ├── app/
 │   ├── service/
@@ -111,7 +96,7 @@ My-Embedded-Project/
 └── docs/
 ```
 
-**添加本标准仓库，并固定到指定 tag 或 commit**：
+**添加本标准仓库，并固定到指定 tag 或 commit**
 
 ```bash
 # 先添加 submodule
@@ -128,13 +113,13 @@ git add .gitmodules external/Embedded-Electronic-Control-Standard
 git commit -m "chore(submodule): add embedded electronic control standard"
 ```
 
-**克隆带有本标准 submodule 的项目**：
+**克隆带有本标准 submodule 的项目**
 
 ```bash
 git clone --recurse-submodules <project-url>
 ```
 
-**如果已经普通 clone，则通过以下指令重新添加本标准仓库**：
+**如果已经普通 clone，则通过以下指令重新添加本标准仓库**
 
 ```bash
 git submodule update --init --recursive
@@ -146,14 +131,14 @@ git submodule update --init --recursive
 
 ### 5.1 普通成员：更新到项目锁定版本
 
-**普通成员一般不需要手动追标准仓库最新 `main`，只需要跟随当前项目锁定的 submodule 版本**：
+**普通成员一般不需要手动追标准仓库最新 `main`，只需要跟随当前项目锁定的 submodule 版本**
 
 ```bash
 git pull --recurse-submodules
 git submodule update --init --recursive
 ```
 
-**含义**：
+**含义**
 
 ```text
 父项目决定当前应该使用哪个标准版本
@@ -162,7 +147,7 @@ git submodule update --init --recursive
 
 ### 5.2 项目维护者：更新项目使用的标准版本
 
-**当项目需要升级本标准仓库到新版本时，由项目维护者执行**：
+**当项目需要升级本标准仓库到新版本时，由项目维护者执行**
 
 ```bash
 cd external/Embedded-Electronic-Control-Standard
@@ -188,45 +173,13 @@ git submodule update --remote --recursive
 
 ---
 
-## 6. 芯片平台 SDK 的使用方式
+## 6. 芯片平台适配
 
-本仓库不直接内置 STM32、ESP32、Renesas、GD32 等具体芯片平台 SDK
+平台适配由成员项目自己的 `src/platform/` 维护，项目 `service/assemble/` 负责注入 PortOps
 
-`validation/` 中允许为了复现实机验证保留最小板级 `platform/` 适配和 CubeMX 工程，但这些文件属于验证资产，不作为可复用 chip SDK 对外提供
+本仓库不提供项目级 app、service 或公共 platform，不要求额外创建 Chip SDK 仓库
 
-**原因**：
-
-1. 芯片平台适配强依赖 HAL/FSP/CubeMX/芯片工程生成代码
-2. 不同平台的时钟、中断、DMA、Cache、串口、CAN 初始化差异很大
-3. 全部塞进本标准仓库会使仓库膨胀且边界混乱
-
-**推荐做法**：
-
-```text
-本仓库：保存通用标准和通用 SDK
-chip SDK 仓库：保存某个芯片平台的 PortOps 适配、注意事项和最小示例
-成员项目：同时 submodule 本仓库和对应 chip SDK
-```
-
-**例如 STM32 项目**：
-
-```bash
-git submodule add https://github.com/<user-or-org>/Embedded-Chip-STM32-HAL-SDK.git external/Embedded-Chip-STM32-HAL-SDK
-
-cd external/Embedded-Chip-STM32-HAL-SDK
-git fetch --tags
-git switch --detach refs/tags/<tag-name>     # 例如 refs/tags/v1.0.0
-
-cd ../..
-git add .gitmodules external/Embedded-Chip-STM32-HAL-SDK
-git commit -m "chore(submodule): add stm32 hal chip sdk"
-```
-
-**目前协会已有的芯片 SDK**：
-
-```text
-暂无
-```
+`validation/` 中的板级适配和 CubeMX 配置只用于复现硬件验证
 
 ---
 
@@ -275,7 +228,7 @@ sdks/device/
 
 ## 8. 安全提醒
 
-**涉及电机、舵机、底盘、机械臂、夹爪等执行机构时，禁止在以下条件下直接上真实硬件**：
+**涉及电机、舵机、底盘、机械臂、夹爪等执行机构时，禁止在以下条件下直接上真实硬件**
 
 1. 没有 stop/brake/fault 逻辑
 2. 没有反馈超时判断
@@ -286,7 +239,7 @@ sdks/device/
 7. app 层直接拼底层控制帧
 8. 中断中执行复杂控制和阻塞等待
 
-**默认原则**：
+**默认原则**
 
 ```text
 先安全，后功能
@@ -297,28 +250,20 @@ sdks/device/
 
 ---
 
-## 9. 贡献方式
+## 9. 贡献方式与仓库治理
 
-**推荐流程**：
+完整协作流程统一见 [CONTRIBUTING](.github/CONTRIBUTING.md)
 
-```text
-issue → branch → commit → PR → review → merge
+可选启用本地 Hook
+
+```bash
+bash setup-scripts/setup-git.sh
 ```
 
-**分支命名示例**：
-
-```text
-docs/readme-overview
-sdk/infra-hfsm-cleanup
-sdk/domain-steer-wheel-kine
-refactor/device-portops-template
-chip/stm32-fdcan-notes
+```powershell
+.\setup-scripts\setup-git.ps1
 ```
 
-**commit 示例**：
+仓库管理员按 [Ruleset 说明](.github/rulesets/README.md) 导入 `.github/rulesets/main-protection.json`
 
-```text
-docs(readme): add submodule usage guide
-sdk(domain): add steer wheel kinematics interface
-refactor(device): introduce portops template
-```
+规则文件随仓库交付不会自动启用 GitHub 远端保护，本地 Hook 也不能替代远端 Ruleset

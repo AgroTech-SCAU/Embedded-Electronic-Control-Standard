@@ -1,10 +1,24 @@
-# 嵌入式电控通用开发流标准
+# 嵌入式电控架构与开发标准
 
 > 适用对象：AgroTech 协会电控组成员，开发基于 MCU 的裸机/RTOS 工程下的底盘电控、机械臂电控、执行机构控制、传感器接入、通信协议与运动控制项目
 
 > 核心目标：让不同项目在目录结构、接口边界、开发顺序、调试方法、复用 SDK 方式上保持一致，减少“能跑但不可维护”的代码
 
 ---
+
+## 仓库边界与文档权威入口
+
+Standard 是协会公共 MCU SDK 的唯一维护源，正式发布目录只包含 `sdks/infra`、`sdks/domain`、`sdks/device`
+
+成员项目维护自己的 `src/app`、`src/service`、`src/service/assemble`、`src/platform`，项目级入口、底盘控制、安装方向、编号补偿和比赛业务不得放入正式公共 SDK
+
+六层架构描述成员项目的组织方式，不代表 Standard 提供六层实现
+
+`examples/` 和 `validation/` 中允许存在最小项目级 app、service 和 platform，它们属于教学或验证资产，不属于正式 SDK 发布面
+
+本文件统一维护架构、PortOps、assemble 和开发方法，Git/GitHub 协作规则统一见 [CONTRIBUTING](../.github/CONTRIBUTING.md)
+
+下文接口代码用于解释设计方法，不能作为当前 SDK API 的准确调用清单，具体类型、函数及配置以正式模块 public header 为准
 
 ## 0. 完整开发流程
 
@@ -25,9 +39,9 @@
 13. [执行安全约束](#13-安全约束)：电机、舵机、底盘、机械臂必须先有 stop、timeout、fault 和限幅
 14. [按 PR 验收清单合并](#14-示例-pr-验收清单)：提交前说明影响层级、测试记录、安全影响和文档同步
 
-可参考的贯穿式示例：
+可参考的贯穿式示例
 
-- [`examples/module_design/portops_bus_motor_device/`](examples/module_design/portops_bus_motor_device/)：从需求边界、public header、PortOps、mock port 到 service 绑定的最小电机设备示例
+- [`examples/module_design/portops_motor_device/`](../examples/module_design/portops_motor_device/)：从需求边界、public header、PortOps、mock port 到 service 绑定的最小电机设备示例
 
 ---
 
@@ -35,7 +49,7 @@
 
 嵌入式电控代码不应只追求“这次比赛能跑”，而应沉淀为可教学、可迁移、可复用、可调试的工程资产
 
-**本标准优先保证**：
+**本标准优先保证**
 
 1. 先分层，再写代码：业务流程、系统服务、真实设备、数学模型、基础设施、芯片适配必须分开
 2. 先接口，再实现：先定义 `.h`、错误码、数据结构、生命周期和调用边界，再写 `.c`
@@ -48,7 +62,7 @@
 
 ## 2. 统一分层结构
 
-**AgroTech 协会嵌入式电控工程统一采用以下从上到下的分层结构**：
+**AgroTech 协会嵌入式电控工程统一采用以下从上到下的分层结构**
 
 ```text
 src/
@@ -60,7 +74,7 @@ src/
 └── platform/   # 6. 平台层：芯片/HAL/FSP/CubeMX 外设适配、CAN/UART/PWM/GPIO/Tick
 ```
 
-**基本依赖规则**：
+**基本依赖规则**
 
 - 下层不得依赖上层
 - app 只依赖 `service/`
@@ -70,7 +84,7 @@ src/
 - infra 不依赖任何项目层；如需时间、锁、输出流等能力，应通过配置/PortOps 接收由 `service` 注入的外部能力
 - platform 是唯一允许直接包含 HAL/FSP/CMSIS/CubeMX 头文件的层
 
-**另外**：
+**另外**
 - service 负责把 platform 能力注入 device，并将 device、domain、infra 组合成系统能力
 - device 只声明自己需要的 PortOps 形状，不感知 platform 的存在
 
@@ -78,13 +92,13 @@ src/
 
 同一套标准需要同时服务“单设备快速闭环”和“多设备系统工程”两类项目；因此推荐明确区分轻量模式与完整模式，而不是要求所有项目一上来就堆满六层
 
-**轻量模式适用场景**：
+**轻量模式适用场景**
 
 - 单电机、单舵机、单 RGB 灯、单传感器节点
 - 小作业、快速验证、教学演示
 - 只有一个设备闭环，暂时不需要系统能力组合
 
-**轻量模式推荐结构**：
+**轻量模式推荐结构**
 
 ```text
 src/
@@ -94,13 +108,13 @@ src/
 └── platform/
 ```
 
-**轻量模式调用链**：
+**轻量模式调用链**
 
 ```text
-app → device → platform
+app → device ← PortOps 注入 ← platform
 ```
 
-**轻量模式最低要求**：
+**轻量模式最低要求**
 
 - app 仍然不直接操作 HAL/FSP/CubeMX 句柄
 - device 必须有 `stop()` 或 `disable()` 等价安全出口
@@ -108,19 +122,19 @@ app → device → platform
 - 涉及真实执行机构时必须先做低速测试并记录结果
 - 一旦开始组合多个设备、控制周期和安全策略，应升级到完整模式
 
-**轻量模式最小电机示例**：
+**轻量模式最小电机示例**
 
-- 可参考 [`examples/module_design/portops_motor_device/README.md`](examples/module_design/portops_motor_device/README.md)
+- 可参考 [`examples/module_design/portops_motor_device/README.md`](../examples/module_design/portops_motor_device/README.md)
 - 典型拆分方式：`app` 负责测试入口与速度给定，`device` 负责电机命令、反馈与 timeout，`platform` 提供 CAN/UART/Tick，`infra` 可选接入 logger 或 delay
 - 这类项目不强制引入 `service/`，但仍应保持 PortOps 注入、参数检查、stop 和 timeout 这些正式 SDK 习惯
 
-**完整模式适用场景**：
+**完整模式适用场景**
 
 - 四舵轮底盘、机械臂、整车、多执行器协同系统
 - 存在模式切换、系统状态缓存、统一安全策略
 - 需要组合多个 device、domain、infra 模块
 
-**完整模式推荐结构**：
+**完整模式推荐结构**
 
 ```text
 src/
@@ -132,7 +146,7 @@ src/
 └── platform/
 ```
 
-**完整模式调用链**：
+**完整模式调用链**
 
 ```text
 app → service
@@ -141,7 +155,7 @@ app → service
             └→ infra
 ```
 
-**完整模式要求**：
+**完整模式要求**
 
 - `service` 统一组合系统能力，不把底层初始化散落在 `main.c`
 - `device` 统一处理真实设备协议、反馈缓存和设备级超时
@@ -150,7 +164,7 @@ app → service
 - `platform` 统一处理 HAL/FSP/CubeMX 外设适配
 - `safety/fault/watchdog` 必须作为架构的一部分进入设计
 
-**完整模式四舵轮底盘示例**：
+**完整模式四舵轮底盘示例**
 
 ```text
 app/chassis_entry
@@ -171,7 +185,7 @@ app/chassis_entry
 
 > 职责：描述整机要做什么
 
-**典型内容**：
+**典型内容**
 
 - `entry_init()` / `entry_loop()`
 - 主任务状态机
@@ -182,11 +196,11 @@ app/chassis_entry
 - 整机故障处理入口
 - 比赛/项目业务逻辑
 
-**允许依赖**：
+**允许依赖**
 
 - `service/`
 
-**禁止事项**：
+**禁止事项**
 
 - 不直接操作 HAL/FSP/CubeMX 句柄
 - 不直接拼 CAN/UART/SPI 帧
@@ -200,7 +214,7 @@ app/chassis_entry
 
 service 是 app 与底层模块之间的系统能力层；它负责把算法、设备、反馈缓存、安全策略、控制周期组合成一个可被 app 调用的能力；同时还负责在自身 `init` 中完成 platform 对 device 的注入，并把 device、domain、infra 配对成完整系统能力
 
-**典型内容**：
+**典型内容**
 
 - `chassis_controller`：将底盘速度指令转换为各轮速度/转角，并调用电机与舵机
 - `arm_controller`：组合 IK/FK、轨迹、关节电机、限位和安全停止
@@ -209,20 +223,20 @@ service 是 app 与底层模块之间的系统能力层；它负责把算法、�
 - `safety_service`：组合急停、失联、超时、限幅与降级输出
 - device PortOps 绑定：把 platform 提供的 CAN/UART/Tick/GPIO 等函数填入 device 的 init 配置
 
-**允许依赖**：
+**允许依赖**
 
 - `device/`
 - `domain/`
 - `infra/`
 - platform 的窄接口或 adapter
 
-**禁止事项**：
+**禁止事项**
 
 - 不直接把平台句柄暴露给 app
 - 不让 app 知道设备协议
 - 不写成纯转发层，service 应承担组合、缓存、安全、调度职责
 
-**示例接口**：
+**示例接口**
 
 ```c
 /* chassis_service.h */
@@ -246,7 +260,7 @@ ChassisStatus chassis_update(void);
 
 service 是系统能力组合层，不是什么都能放的中间层；只要 service 开始同时写协议、数学模型、任务流程和 HAL 细节，它就会很快失控
 
-**service 允许承担的内容**：
+**service 允许承担的内容**
 
 - 组合 `device/domain`
 - 组装 `device/platform`
@@ -256,7 +270,7 @@ service 是系统能力组合层，不是什么都能放的中间层；只要 se
 - 聚合 timeout、fault、stop、brake、degrade
 - 对 app 暴露稳定、窄而清晰的系统能力接口
 
-**service 不应承担的内容**：
+**service 不应承担的内容**
 
 - 复杂数学模型和解算细节，这些放 `domain`
 - 真实设备协议、帧格式、寄存器细节，这些放 `device`
@@ -264,7 +278,7 @@ service 是系统能力组合层，不是什么都能放的中间层；只要 se
 - 整机任务流程、模式跳转、长链路业务编排，这些放 `app/HFSM`
 - 大量通信用帧解析和字段拆包，这些优先放 `infra/parser`，业务分发再由 `communication_service` 组合
 
-**判断 service 是否变重时，优先考虑**：
+**判断 service 是否变重时，优先考虑**
 
 - 这段代码如果脱离具体项目，是否还能作为通用设备协议存在
 - 这段代码如果去掉真实硬件，是否还能作为纯算法存在
@@ -288,7 +302,7 @@ service 是系统能力组合层，不是什么都能放的中间层；只要 se
 - 正例：组合 parser、链路状态、命令表和业务消息分发，对 app 暴露“收到遥控命令”“收到上位机心跳”“链路掉线”这类系统语义
 - 反例：在 service 里手写大段字节流状态机、CRC 细节和 DMA 搬运逻辑；或者把所有业务命令处理都塞在回调里直接驱动电机
 
-**service 过薄同样是问题**：
+**service 过薄同样是问题**
 
 - 只有 `service_xxx()` 调一下 `device_xxx()` 的纯转发层不值得保留
 - 如果一个 service 既不组合多个模块，也不维护状态缓存、安全策略或统一入口，通常说明它应该下沉回 `device`，或上移到 `app`
@@ -301,7 +315,7 @@ device 关注真实硬件设备，但不应把自己写死在某一个 MCU 的 H
 
 需要特别注意：统一接口只固定共同能力、单位和错误语义，不应强行固定所有具体厂家的初始化配置结构；若不同厂家、协议或控制模式的配置差异明显，统一入口应使用 `const void* config` 进行转发，具体配置结构由具体驱动在自身 public header 中定义
 
-**典型内容**：
+**典型内容**
 
 - 电机 SDK
 - 舵机 SDK
@@ -312,11 +326,11 @@ device 关注真实硬件设备，但不应把自己写死在某一个 MCU 的 H
 - 设备状态解析
 - 设备超时与掉线判断
 
-**允许依赖**：
+**允许依赖**
 
 - `infra/`
 
-**禁止事项**：
+**禁止事项**
 
 - 不写业务判断，例如“采摘完成”“巡线开始”
 - 不在中断里执行复杂控制逻辑
@@ -325,7 +339,7 @@ device 关注真实硬件设备，但不应把自己写死在某一个 MCU 的 H
 - 不感知 `platform/` 的具体实现，只通过 `PortOps` 接收外部注入
 - 不把芯片头文件扩散到通用 SDK 的 public header
 
-**示例 PortOps 与具体配置**：
+**示例 PortOps 与具体配置**
 
 ```c
 /* bus_motor.h：统一入口只描述共同能力 */
@@ -367,7 +381,7 @@ typedef struct {
 
 domain 应尽量与真实硬件无关，最好能在 PC 上编译和测试
 
-**典型内容**：
+**典型内容**
 
 - 舵轮/轮轨/阿克曼/麦轮运动学
 - 机械臂 FK/IK
@@ -378,12 +392,12 @@ domain 应尽量与真实硬件无关，最好能在 PC 上编译和测试
 - 夹持力模型
 - 机构几何解算
 
-**允许依赖**：
+**允许依赖**
 
 - `infra/`
 - 可在目标平台使用的标准 C/C++ 库
 
-**禁止事项**：
+**禁止事项**
 
 - 不包含 `main.h`、`stm32xxx_hal.h`、`hal_data.h` 等芯片头文件
 - 不直接调用 CAN/UART/GPIO
@@ -395,7 +409,7 @@ domain 应尽量与真实硬件无关，最好能在 PC 上编译和测试
 
 > 职责：提供与业务和具体硬件无关、且不依赖任何项目层的通用能力
 
-**典型内容**：
+**典型内容**
 
 - PID、滤波、限幅器
 - ring buffer、CRC、协议解析器
@@ -406,7 +420,7 @@ domain 应尽量与真实硬件无关，最好能在 PC 上编译和测试
 - 时间差工具
 - 单元测试工具
 
-**要求**：
+**要求**
 
 - 不依赖 `platform/`、`device/`、`domain/`、`service/`、`app/`
 - 不包含 HAL/FSP/CMSIS 头文件
@@ -416,7 +430,7 @@ domain 应尽量与真实硬件无关，最好能在 PC 上编译和测试
 - 错误码清晰
 - 如果需要时间、锁、输出流等外部能力，应通过配置、PortOps 或函数指针接收由 `service` 注入的能力，而不是直接依赖 `platform/`
 
-**典型 infra 注入接口形态**：
+**典型 infra 注入接口形态**
 
 ```c
 /* timeout_guard.h */
@@ -444,7 +458,7 @@ bool timeout_guard_is_timeout(const TimeoutGuard* self);
 
 > 职责：封装芯片和板级外设能力
 
-**典型内容**：
+**典型内容**
 
 - CAN/FDCAN、UART/USART、SPI/I2C
 - GPIO、TIMER/PWM、DMA、SysTick
@@ -452,7 +466,7 @@ bool timeout_guard_is_timeout(const TimeoutGuard* self);
 - retarget/printf
 - 板级初始化
 
-**要求**：
+**要求**
 
 - 允许包含 HAL/FSP/CMSIS 头文件
 - 对上提供稳定、窄接口
@@ -464,7 +478,7 @@ bool timeout_guard_is_timeout(const TimeoutGuard* self);
 
 ## 4. 从 0 到 1 的开发流程
 
-**一个新模块或新功能从 0 到 1 时，不应从 `while(1)` 或 HAL 调用开始，而应按以下顺序推进**：
+**一个新模块或新功能从 0 到 1 时，不应从 `while(1)` 或 HAL 调用开始，而应按以下顺序推进**
 
 1. 定义需求和安全边界：控制对象、输入输出、最大输出、默认状态、失联处理、急停链路
 2. 判断所属层级：app/service/device/domain/infra/platform
@@ -474,7 +488,7 @@ bool timeout_guard_is_timeout(const TimeoutGuard* self);
 6. 定义测试入口：PC mock、单模块测试、板级测试、真实硬件低速测试
 7. 先跑最小闭环，再接入完整 app 任务流
 
-**判断模块层级时优先使用以下问题**：
+**判断模块层级时优先使用以下问题**
 
 | 问题 | 倾向层级 |
 |---|---|
@@ -533,21 +547,21 @@ ModuleStatus module_get_status(const Module* self, ModuleStatus* out);
 
 public header 只暴露上层需要依赖的类型和函数；内部缓存、协议细节、平台句柄、私有状态应留在 `.c` 或 private header 中
 
-**状态码与生命周期推荐统一约定**：
+**状态码与生命周期推荐统一约定**
 
 - 正式 SDK 优先包含 `init`、`enable/start`、`disable/stop`、`update`、`reset`、`get_state`、`clear_fault`
 - 无主动运行期的纯算法模块可只保留必要接口，不强行补全生命周期
 - 公共状态建议优先复用 `UNINIT`、`INITED`、`READY`、`RUNNING`、`STOPPED`、`FAULT`、`TIMEOUT`
 - 公共返回值建议优先复用 `OK`、`ERROR`、`INVALID_PARAM`、`INVALID_STATE`、`NOT_INITED`、`TIMEOUT`、`PORT_ERROR`、`DEVICE_ERROR`、`OUT_OF_RANGE`、`BUSY`、`UNSUPPORTED`
 
-**`bool`、状态码、故障状态的使用边界**：
+**`bool`、状态码、故障状态的使用边界**
 
 - `bool`：只表达二值语义，例如 `is_ready()`、`register_rx()` 成功与否、开关配置项
 - `status/error code`：用于 public API 的动作结果，告诉上层“为什么失败”
 - `state`：用于表达模块当前生命周期阶段，例如 READY、RUNNING、FAULT
 - `fault flags` 或反馈字段：用于表达更细粒度的内部故障来源，例如过流、掉线、编码器异常
 
-**推荐统一骨架**：
+**推荐统一骨架**
 
 ```c
 /* module.h */
@@ -585,20 +599,20 @@ InfraLifecycleState module_get_state(const Module* self);
 
 在本标准中，device 和需要外部能力的 infra 都不应直接依赖 `hfdcan1`、`huart1`、`HAL_GetTick()` 等平台对象；它们只声明自己需要的能力，例如 `send`、`now_ms`、`lock`、`unlock`、`write`
 
-**优先推荐**：
+**优先推荐**
 
 ```text
 module_init(config with PortOps)
 ```
 
-**不优先推荐**：
+**不优先推荐**
 
 ```text
 module_register_port(ops)
 module_init(config)
 ```
 
-**原因**：
+**原因**
 
 - 分成 register 和 init 后容易漏调用
 - init 时无法一次性检查依赖是否完整
@@ -611,7 +625,7 @@ module_init(config)
 
 初版设计允许只设计必要的 `.h` 骨架；在 `.c` 实现过程中，如果发现缺少配置项、状态查询、错误码或测试入口，可以按需扩展 `.h`
 
-**扩展 `.h` 时必须满足**：
+**扩展 `.h` 时必须满足**
 
 - 新增字段有明确职责
 - 新增接口有明确调用时机
@@ -619,9 +633,9 @@ module_init(config)
 - 不为了临时调试暴露内部缓存
 - 改动 public API 时同步更新文档和示例
 
-**推荐 init 形态**：
+**推荐 init 形态**
 
-普通多实例模块可以固定自己的配置类型：
+普通多实例模块可以固定自己的配置类型
 
 ```c
 /* module.h */
@@ -634,7 +648,7 @@ typedef struct {
 ModuleStatus module_init(Module* self, const ModuleConfig* config);
 ```
 
-统一入口/接口单例模块如果需要兼容多个具体实例，不应把配置结构写死在统一层：
+统一入口/接口单例模块如果需要兼容多个具体实例，不应把配置结构写死在统一层
 
 ```c
 /* bus_motor.h */
@@ -648,7 +662,7 @@ ModuleStatus module_init(const void* config);
 
 判断原则：如果 config 字段只属于某个厂家、芯片、协议或项目实例，就放在具体驱动的 `XxxConfig` 中；如果字段确实是所有实例都共同需要的能力描述，才放在统一辅助类型中
 
-**init 至少负责**：
+**init 至少负责**
 
 - 参数检查
 - PortOps 完整性检查
@@ -724,7 +738,7 @@ static BusMotorStatus dm_motor_init(const void* config) {
 }
 ```
 
-**该例子的关键点**：
+**该例子的关键点**
 
 - `bus_motor.h` 不知道达妙、DJI 或其他厂家需要哪些私有字段
 - `BusMotorPortOps` 可以作为公共辅助类型复用，但不强制所有厂家配置完全一样
@@ -811,7 +825,7 @@ C 语言中不要为了“像类”而强行复制完整 OOP；应优先选择�
 | 入口单例 + 数据多例 | 上层需要统一入口，但内部管理多个设备，例如 bus_motor manager |
 | 入口多例 + 数据多例 | 只有在多个实现确实需要并存时使用，避免过度抽象 |
 
-**多实例对象最小骨架**：
+**多实例对象最小骨架**
 
 ```c
 /* pid.h */
@@ -826,7 +840,7 @@ void pid_init(Pid* self, float kp, float ki, float kd);
 float pid_update(Pid* self, float target, float feedback);
 ```
 
-**接口单例最小骨架**：
+**接口单例最小骨架**
 
 ```c
 /* module_interface.h */
@@ -845,7 +859,7 @@ void module_set_instance(const ModuleInterface* instance);
 #define module (*module_instance)
 ```
 
-**常见越界**：
+**常见越界**
 
 - 为了像成员函数，给每个对象都挂一张方法表
 - 为了模拟 private，滥用 `void* private`，导致类型边界更差
@@ -895,7 +909,7 @@ COMMAND_TABLE
 | 配置结构体 | 参数集中管理，避免散落在代码中 |
 | 错误码 | 下层失败不直接把 HAL/FSP 状态传给上层 |
 
-**反例**：
+**反例**
 
 - app 直接调用 `HAL_CAN_AddTxMessage()`
 - service 中到处引用 `hfdcan1`
@@ -914,7 +928,7 @@ COMMAND_TABLE
 | service | 系统能力 API、周期 update | 设备绑定、控制周期、安全策略 | device/domain/infra/platform | app 业务细节、平台句柄暴露到上层 | 闭环测试 |
 | app | 任务入口、命令分发、模式状态机 | 业务流程内部状态 | service | HAL、设备协议、infra 细节 | 整机流程和异常测试 |
 
-**初始化推荐顺序**：
+**初始化推荐顺序**
 
 ```text
 platform bringup
@@ -926,7 +940,7 @@ platform bringup
 → app task start
 ```
 
-**错误流推荐规则**：
+**错误流推荐规则**
 
 ```text
 platform error
@@ -1005,14 +1019,14 @@ ChassisStatus chassis_init(void) {
 }
 ```
 
-**这个写法的关键点**：
+**这个写法的关键点**
 
 - platform 函数只在 service 的 `.c` 中出现
 - app 只调用 `chassis_init()`，不会漏掉 bus_motor 和 timeout_guard 的能力注入
 - device 仍然不知道 HAL 句柄，也不知道项目使用的是 STM32、Renesas 还是 PC mock
 - infra 不承担平台适配职责，但可以通过 `service` 注入的 PortOps 接收外部能力
 
-**完整工程中的 assemble 约定**：
+**完整工程中的 assemble 约定**
 
 当系统同时包含多个 device/domain/infra 模块时，推荐在 `service/assemble/` 中放置组装入口，例如 `assemble_chassis()`、`assemble_imu()`、`assemble_arm()`；assemble 文件允许包含 platform 头文件，负责把平台函数包装为 PortOps、绑定具体 device instance、注册必要回调并调用 service init；但它不应写业务任务流程、复杂控制算法或真实设备协议
 
@@ -1020,7 +1034,7 @@ ChassisStatus chassis_init(void) {
 
 如果 service 没法直接把 platform 函数传给 device，需要增加 adapter；adapter 的职责是把“不匹配的平台接口”转换成 device 需要的 PortOps 形状
 
-**适合使用 adapter 的场景**：
+**适合使用 adapter 的场景**
 
 - platform 函数签名和 device PortOps 不一致
 - 需要在发送前补默认 CAN 通道、总线号、互斥锁或统计信息
@@ -1133,7 +1147,7 @@ adapter 不应变成新的业务层；它只负责接口形状转换，不负责
 
 ## 7. 上层任务流组织方法
 
-**简单项目常从以下写法开始**：
+**简单项目常从以下写法开始**
 
 ```c
 while (1) {
@@ -1143,7 +1157,7 @@ while (1) {
 }
 ```
 
-**当任务开始包含模式切换、故障恢复、异步命令和安全抢占时，应升级为**：
+**当任务开始包含模式切换、故障恢复、异步命令和安全抢占时，应升级为**
 
 ```text
 app task
@@ -1154,7 +1168,7 @@ app task
 → platform PortOps
 ```
 
-**基本分工**：
+**基本分工**
 
 - app task 描述“要做什么”，不描述底层如何发帧
 - command dispatcher 负责外部命令到内部动作的映射
@@ -1163,7 +1177,7 @@ app task
 - safety service 或 safety guard 负责抢占式 stop/brake/fault
 - stop/brake/fault 优先级必须高于普通任务
 
-**HFSM 状态设计应至少定义四类函数**：
+**HFSM 状态设计应至少定义四类函数**
 
 ```c
 /* app_state.h */
@@ -1175,7 +1189,7 @@ typedef struct {
 } AppStateOps;
 ```
 
-**适合 HFSM 的状态示例**：
+**适合 HFSM 的状态示例**
 
 ```text
 底盘模式：IDLE / MANUAL / AUTO / FAULT
@@ -1191,7 +1205,7 @@ typedef struct {
 
 ### Step 0：需求与安全边界
 
-**写代码前必须明确**：
+**写代码前必须明确**
 
 - 控制对象是什么
 - 输入是什么
@@ -1207,7 +1221,7 @@ typedef struct {
 
 ### Step 1：定义目录与接口
 
-**先建立目录**：
+**先建立目录**
 
 ```text
 src/app
@@ -1218,7 +1232,7 @@ src/infra
 src/platform
 ```
 
-**再定义头文件接口**：
+**再定义头文件接口**
 
 - 类型
 - 状态码
@@ -1234,7 +1248,7 @@ src/platform
 
 ### Step 2：打通 platform/
 
-**优先验证**：
+**优先验证**
 
 - 时钟树
 - 串口日志
@@ -1244,7 +1258,7 @@ src/platform
 - 中断回调
 - 基础发送与接收
 
-**要求**：
+**要求**
 
 - 每个外设必须有最小测试
 - 每个通信外设必须有发送、接收、错误回调
@@ -1253,7 +1267,7 @@ src/platform
 
 ### Step 3：接入 infra/
 
-**优先接入**：
+**优先接入**
 
 - delay/time
 - ring buffer
@@ -1263,7 +1277,7 @@ src/platform
 - HFSM
 - PID/matrix/filter
 
-**要求**：
+**要求**
 
 - 可独立测试
 - 与 HAL 无关
@@ -1273,7 +1287,7 @@ src/platform
 
 ### Step 4：开发 device/
 
-**开发顺序**：
+**开发顺序**
 
 1. 明确设备协议
 2. 定义设备状态码
@@ -1286,7 +1300,7 @@ src/platform
 9. 实现初始化、停止、失能
 10. 实现最小闭环测试
 
-**设备层必须考虑**：
+**设备层必须考虑**
 
 - ID 合法性
 - 参数范围
@@ -1299,7 +1313,7 @@ src/platform
 
 ### Step 5：开发 domain/
 
-**开发顺序**：
+**开发顺序**
 
 1. 明确数学模型
 2. 明确坐标系和单位
@@ -1308,7 +1322,7 @@ src/platform
 5. 写 PC 测试
 6. 再接入 service
 
-**domain 必须写清楚**：
+**domain 必须写清楚**
 
 - 长度单位：m/mm
 - 角度单位：rad/deg
@@ -1320,7 +1334,7 @@ src/platform
 
 ### Step 6：开发 service/
 
-**开发顺序**：
+**开发顺序**
 
 1. 引入 platform 的窄接口或 adapter
 2. 组装 device 需要的 PortOps
@@ -1333,7 +1347,7 @@ src/platform
 9. 实现 stop/brake/fault
 10. 暴露给 app 使用
 
-**service 必须考虑**：
+**service 必须考虑**
 
 - app 调用频率
 - service 内部更新频率
@@ -1348,7 +1362,7 @@ src/platform
 
 app 层最后写；app 应该调用已经稳定的 service，而不是边写业务边直接改底层
 
-**app 开发顺序**：
+**app 开发顺序**
 
 1. 上电初始化
 2. 模式切换
@@ -1360,7 +1374,7 @@ app 层最后写；app 应该调用已经稳定的 service，而不是边写业�
 
 ### Step 8：联调与测试
 
-**联调顺序**：
+**联调顺序**
 
 1. PC mock 测试
 2. 单模块静态测试
@@ -1375,7 +1389,7 @@ app 层最后写；app 应该调用已经稳定的 service，而不是边写业�
 
 ## 9. 模块完成标准 Definition of Done
 
-**一个模块只有满足以下条件，才算完成**：
+**一个模块只有满足以下条件，才算完成**
 
 - [ ] 有明确职责说明
 - [ ] 有 `.h` 接口
@@ -1395,7 +1409,7 @@ app 层最后写；app 应该调用已经稳定的 service，而不是边写业�
 
 ## 10. SDK 分类标准
 
-**AgroTech 协会通用 SDK 统一放在 `Embedded-Electronic-Control-Standard/sdks/` 中**：
+**AgroTech 协会通用 SDK 统一放在 `Embedded-Electronic-Control-Standard/sdks/` 中**
 
 ```text
 sdks/
@@ -1406,14 +1420,14 @@ sdks/
 
 ### 10.1 infra：通用基础设施 SDK
 
-**特点**：
+**特点**
 
 - 与真实硬件无关
 - 不直接依赖 HAL/FSP/CubeMX
 - 尽量可在 PC/mock 环境测试
 - 可被 device/domain/service 复用
 
-**典型模块**：
+**典型模块**
 
 - ring buffer
 - protocol parser
@@ -1427,14 +1441,14 @@ sdks/
 
 ### 10.2 domain：领域/算法 SDK
 
-**特点**：
+**特点**
 
 - 与真实硬件无关
 - 不需要对接 CAN/UART/GPIO
 - 必须明确单位、坐标系、输入输出范围和失败条件
 - 尽量可以单独进行 PC 测试
 
-**典型模块**：
+**典型模块**
 
 - 机械臂 FK/IK
 - 舵轮/轮轨/阿克曼运动学
@@ -1446,14 +1460,14 @@ sdks/
 
 ### 10.3 device：常用设备 SDK
 
-**特点**：
+**特点**
 
 - 与真实设备有关
 - 不应写死某一个 MCU
 - 通过 `init(config with PortOps)` 或等价注入方式与 platform 对接
 - public header 不应包含芯片 HAL/FSP 头文件
 
-**典型模块**：
+**典型模块**
 
 - bus_motor
 - bus_servo
@@ -1462,16 +1476,13 @@ sdks/
 - CAN sensor
 - UART module
 
-### 10.4 chip SDK 不放在本仓库内
+### 10.4 平台适配由成员项目维护
 
-**STM32、Renesas、ESP32、GD32 等具体芯片平台适配独立为 chip SDK 仓库**：
+STM32、Renesas、ESP32、GD32 的 HAL/FSP/CubeMX 适配由成员项目的 `src/platform/` 维护，通过项目 `service/assemble/` 注入 PortOps
 
-```text
-Embedded-Chip-STM32-HAL-SDK
-Embedded-Chip-Renesas-FSP-SDK
-```
+本轮不建立独立 Chip SDK，不要求成员增加额外平台 SDK submodule
 
-本标准仓库负责说明“架构怎么写、SDK 怎么设计”；chip SDK 负责说明“某个芯片平台怎么把 CAN/UART/Tick/GPIO/PWM 等底层能力适配成 PortOps”
+`validation/` 可保留最小板级适配与工程配置，用于复现验证，不作为公共平台 SDK 发布
 
 ---
 
@@ -1486,7 +1497,7 @@ Embedded-Chip-Renesas-FSP-SDK
 - 成员项目如何通过 submodule 引入本标准仓库
 - 普通成员如何更新
 - 项目维护者如何升级标准版本
-- chip SDK 如何按需额外引入
+- 成员项目如何维护平台适配
 - 安全提醒
 - 网站同步说明
 
@@ -1508,7 +1519,7 @@ Embedded-Chip-Renesas-FSP-SDK
 
 ## 12. 对现有代码的迁移建议
 
-**对于已有项目，不建议一次性大改，而是逐步迁移**：
+**对于已有项目，不建议一次性大改，而是逐步迁移**
 
 1. 先补 README 和目录说明
 2. 把 HAL 直接调用收拢到 platform
@@ -1518,7 +1529,7 @@ Embedded-Chip-Renesas-FSP-SDK
 6. 把组合控制逻辑移入 service
 7. 最后整理 app 状态机
 
-**迁移时优先保证**：
+**迁移时优先保证**
 
 - 不破坏当前可运行版本
 - 每次 PR 只移动或重构一个模块
@@ -1529,7 +1540,7 @@ Embedded-Chip-Renesas-FSP-SDK
 
 ## 13. 安全约束
 
-**涉及执行机构的模块必须明确**：
+**涉及执行机构的模块必须明确**
 
 - 默认上电输出是什么
 - 初始化失败是否输出
@@ -1541,7 +1552,7 @@ Embedded-Chip-Renesas-FSP-SDK
 - 速度、电流、角度是否限幅
 - 故障恢复是否需要人工确认
 
-**禁止**：
+**禁止**
 
 - 没有 stop/brake/fault 逻辑就上真实电机
 - 没有反馈超时就闭环
@@ -1554,7 +1565,7 @@ Embedded-Chip-Renesas-FSP-SDK
 
 ## 14. 示例 PR 验收清单
 
-**每个 PR 至少回答**：
+**每个 PR 至少回答**
 
 - 这个 PR 改了哪一层
 - 是否引入跨层依赖

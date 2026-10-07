@@ -23,7 +23,11 @@ sdks/
 | `domain/` | 数学模型、运动学、坐标系、限幅 | `infra/`、标准 C 数学库 | 真实设备、CAN/UART/GPIO、HAL/FSP/CubeMX |
 | `device/` | 真实设备命令、反馈、超时、安全停止 | `infra/`、PortOps | app 业务、domain、平台句柄、芯片头文件 |
 
-具体芯片适配不放在本仓库内，应由独立 chip SDK 或成员项目的 `src/platform/` 提供
+正式 SDK 只维护 `infra / domain / device`
+
+成员项目自己维护 `app`、`service`、`service/assemble`、`platform`，平台能力由项目 assemble 注入，不建立独立 Chip SDK
+
+架构权威入口见 [architecture](../docs/architecture.md)，协作权威入口见 [CONTRIBUTING](../.github/CONTRIBUTING.md)
 
 ---
 
