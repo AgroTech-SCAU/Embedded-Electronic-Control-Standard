@@ -328,12 +328,11 @@ Pull Request
 
 Ruleset 的具体说明见：[`rulesets/README.md`](rulesets/README.md)
 
-
 ## Standard 公共 SDK 补充要求
 
-- 正式 `sdks/` 只维护 infra、domain、device，项目 app、service、assemble、platform 不纳入公共 SDK
-- 修改 public API 时说明单位、错误语义、兼容影响及成员项目迁移方式，同步更新模块说明和示例
-- 涉及 stop、timeout、fault、驱动或安全输出时，PR 记录硬件、接线、验证入口、实际步骤和对应 commit，未执行的真机验证必须写明未验证
-- 成员项目以 submodule 固定 Tag 或 commit，依赖升级由项目维护者验证并提交父项目指针
-- 架构规则统一见 [architecture](../docs/architecture.md)，当前执行计划见 [步骤](../docs/步骤.md)
-- 本轮不新增 tests、CHANGELOG 或 GitHub Actions，不凭文档声明模块已经稳定
+- 正式 `sdks/` 只维护 infra domain device
+- public API 变更必须说明单位 错误语义和兼容影响
+- stop timeout fault 和执行器输出相关 PR 只记录实际验证结果
+- 成员项目通过 submodule 固定 Tag 或 commit
+- 架构规则见 [architecture](../docs/architecture.md)
+- 当前计划见 [plan](../docs/plan.md)

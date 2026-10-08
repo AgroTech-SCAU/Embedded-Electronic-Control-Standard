@@ -1,66 +1,21 @@
-# infra SDK 基本说明
+# infra SDK
 
-> `sdks/infra/` 提供与业务和具体芯片无关的基础设施模块
+infra 保存与具体硬件和机器人业务无关的基础设施
 
----
+当前包括
 
-## 1. 模块定位
+- delay
+- log
+- PID
+- matrix
+- protocol_parser
+- HFSM
 
-infra 模块用于沉淀通用能力，例如控制器、数学工具、协议解析器、状态机和时间工具；它们应尽量能在 PC/mock 环境下单独编译和测试
+## 约束
 
----
+- 不直接依赖项目层和平台全局句柄
+- 需要时间 输出 锁等外部能力时通过配置或 PortOps 注入
+- public header 不包含 HAL FSP CubeMX 项目头
+- 多实例模块优先使用显式实例或上下文
 
-## 2. 当前模块
-
-| 模块 | 文件 | 说明 |
-|---|---|---|
-| delay | `delay.h` / `delay.c` | 通用延时或时间辅助接口 |
-| matrix | `matrix.h` / `matrix.c` | 矩阵运算工具 |
-| PID | `pid.h` / `pid.c` | 多实例 PID 控制器 |
-| protocol parser | `protocol_parser.h` / `protocol_parser.c` | 通信协议解析辅助 |
-| HFSM | `hfsm/` | 层级状态机基础框架 |
-| log | `log.h` / `log.c` | 可替换输出端口的轻量日志接口 |
-
----
-
-## 3. 设计约束
-
-- public header 不包含 HAL/FSP/CubeMX/CMSIS 头文件
-- 不保存平台全局句柄，例如 `hfdcan1`、`huart1`
-- 多实例工具优先使用 `Handle* self` 或上下文结构
-- 二值配置、状态和查询接口统一使用 `bool` / `true` / `false`，例如 `ring_buf_create(..., bool overwrite)`、`is_full()` 和 `is_empty()`
-- 需要时间、锁、输出流等底层能力时，通过 PortOps 接入
-- 错误码不直接泄漏平台错误类型
-- 能 PC/mock 测试的模块应保留最小测试入口
-
----
-
-## 4. 推荐接口形态
-
-```c
-typedef struct {
-    uint32_t (*now_ms)(void);
-} InfraPortOps;
-
-typedef struct {
-    const InfraPortOps* ops;
-    uint32_t timeout_ms;
-} InfraConfig;
-
-InfraStatus infra_init(Infra* self, const InfraConfig* config);
-InfraStatus infra_update(Infra* self);
-```
-
-纯算法工具不需要 PortOps 时，应保持简单函数或多实例对象，不为统一风格强行增加抽象
-
----
-
-## 5. 后续补充方向
-
-- CRC
-- limiter
-- low pass filter
-- moving average
-- error code table helper
-- unit test scaffold
-
+详细 API 以各模块头文件为准

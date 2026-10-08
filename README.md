@@ -1,56 +1,52 @@
 # Embedded-Electronic-Control-Standard
 
-AgroTech 协会公共 MCU SDK，供成员项目按需引用，Longinus 所需模块的真机验证已由负责人确认通过
+AgroTech 协会公共 MCU SDK
 
-正式代码位于 `sdks/infra` `sdks/domain` `sdks/device`，项目负责 app service assemble platform 与机械安装配置
+Standard 只维护可跨项目复用的 `infra / domain / device`
+项目自行维护 `app / service / service/assemble / platform` 与机械安装配置
+
+## 快速入口
 
 | 入口 | 用途 |
 |---|---|
-| [SDK 状态](docs/module-status.md) | 判断哪些模块可固定使用 |
-| [SDK 接入](sdks/README.md) | 源码选择 初始化与平台注入 |
-| [架构](docs/architecture.md) | 六层项目架构与公共 SDK 边界 |
-| [验证](validation/README.md) | 主机命令 板级接入和硬件结果来源 |
-| [发布规则](docs/release-policy.md) | 兼容性 变更和发布 Gate |
-| [实施记录](docs/plan.md) | 五步任务结果与剩余限制 |
-| [协作指南](.github/CONTRIBUTING.md) | Issue Branch PR 和负责人合并 |
+| [设备 SDK](sdks/device/README.md) | 电机 遥控 IMU RGB 舵机 |
+| [SDK 接入](sdks/README.md) | 项目如何引用和组装 |
+| [架构边界](docs/architecture.md) | 分层 PortOps 单位与项目边界 |
+| [模块状态](docs/module-status.md) | 判断模块成熟度 |
+| [当前计划](docs/plan.md) | 当前剩余工作 |
+| [协作指南](.github/CONTRIBUTING.md) | Issue Branch PR 与合并流程 |
 
-## 快速引用
+## 引用方式
 
-成员项目使用 submodule 固定负责人验证过的 Tag 或 commit，不跟随远端分支自动更新
+成员项目通过 submodule 固定负责人确认过的 Tag 或 commit
 
-```sh
+```bash
 git submodule add https://github.com/AgroTech-SCAU/Embedded-Electronic-Control-Standard.git external/Embedded-Electronic-Control-Standard
 cd external/Embedded-Electronic-Control-Standard
-git fetch origin --tags
-git switch --detach <verified-tag-or-commit>
-cd ../..
-git add .gitmodules external/Embedded-Electronic-Control-Standard
-git commit -m "chore(submodule): pin embedded SDK"
+git fetch --tags
+git switch --detach <tag-or-commit>
 ```
 
-克隆或同步成员项目后执行
+克隆成员项目后执行
 
-```sh
+```bash
 git submodule update --init --recursive
 ```
 
-将选定模块的正式源文件加入构建，include 根目录使用 `sdks/device` `sdks/infra` `sdks/domain`，具体依赖见模块头文件和验证清单
+## 使用规则
 
-由项目 service/assemble 创建 PortOps 和实例存储，再初始化 SDK，PortOps 与存储的生命周期覆盖 SDK 使用周期
+- 不复制 SDK 到成员项目维护第二份实现
+- platform 提供 CAN UART SPI GPIO 时基和临界区等底层能力
+- service/assemble 负责 PortOps 配置 实例存储和真实硬件绑定
+- device 不直接依赖 HAL FSP CubeMX 项目头或具体外设句柄
+- position 使用 rad velocity 使用 rad/s 长度使用 m torque 只表示 N·m
+- CAN ID 电机方向 零位 机械补偿和比赛业务留在项目侧
+- 涉及执行机构必须有 stop timeout fault 和人工恢复路径
 
-## 开发与验证
+## 验证与发布
 
-```sh
-sh validation/build.sh /tmp/embedded-sdk-validation
-bash setup-scripts/setup-git.sh
-```
+`validation/` 只保存最小集成工程和复现入口，不复制正式 SDK
 
-Windows 可执行 setup-scripts/setup-git.ps1 配置本地 Hook
+模块成熟度以 [module-status](docs/module-status.md) 为准
 
-主机验证不生成 MCU 固件，validation 中的板级目录是集成资产，完整 HAL CMSIS 启动文件与链接脚本由成员项目提供
-
-当前提供 DM DJI FS-iA10B 验证入口，负责人已确认步骤 1～3 真机通过，详细硬件日志尚未随包提供，证据边界见 [验证记录](validation/hardware-evidence.md)
-
-涉及执行机构时，项目必须处理 stop 反馈超时 错误返回和人工恢复，SDK 软件失能不等于物理断电
-
-仓库保护配置由管理员按 [Ruleset 指南](.github/rulesets/README.md) 导入，本地 Hook 不替代远端保护
+正式 Release 由项目负责人在代码 文档和必要真机结果确认后创建
